@@ -1,0 +1,23 @@
+Traceback (most recent call last):
+  File "/Users/martinplouy/miniconda3/lib/python3.6/site-packages/spyder/utils/external/github.py", line 58, in <module>
+    from urllib2 import build_opener, HTTPSHandler, Request, HTTPError
+ModuleNotFoundError: No module named 'urllib2'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/martinplouy/miniconda3/lib/python3.6/site-packages/spyder/app/mainwindow.py", line 3181, in main
+    mainwindow = run_spyder(app, options, args)
+  File "/Users/martinplouy/miniconda3/lib/python3.6/site-packages/spyder/app/mainwindow.py", line 3057, in run_spyder
+    main.setup()
+  File "/Users/martinplouy/miniconda3/lib/python3.6/site-packages/spyder/app/mainwindow.py", line 791, in setup
+    from spyder.plugins.console import Console
+  File "/Users/martinplouy/miniconda3/lib/python3.6/site-packages/spyder/plugins/console.py", line 37, in <module>
+    from spyder.widgets.reporterror import SpyderErrorDialog
+  File "/Users/martinplouy/miniconda3/lib/python3.6/site-packages/spyder/widgets/reporterror.py", line 26, in <module>
+    from spyder.widgets.github.backend import GithubBackend
+  File "/Users/martinplouy/miniconda3/lib/python3.6/site-packages/spyder/widgets/github/backend.py", line 30, in <module>
+    from spyder.utils.external import github
+  File "/Users/martinplouy/miniconda3/lib/python3.6/site-packages/spyder/utils/external/github.py", line 65, in <module>
+    from urllib.request import build_opener, HTTPSHandler, HTTPError, Request
+ImportError: cannot import name 'HTTPSHandler'
