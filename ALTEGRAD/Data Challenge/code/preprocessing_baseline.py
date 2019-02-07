@@ -44,7 +44,7 @@ num_walks = 5
 walk_length = 10
 max_doc_size = 70 # maximum number of 'sentences' (walks) in each pseudo-document
 
-path_root = # fill me!
+path_root = os.getcwd() +"/"
 path_to_data = path_root + '/data/'
 
 # = = = = = = = = = = = = = = =
