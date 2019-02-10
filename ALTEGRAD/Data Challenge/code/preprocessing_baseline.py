@@ -26,9 +26,9 @@ def random_walk(graph, node, walk_length):
     return walk
 
 
-def generate_walks(graph, num_walks, walk_length):
+def generate_walks(graph, num_walks, min_walk_length, max_walk_length):
     '''
-    samples num_walks walks of length walk_length+1 from each node of graph
+    samples num_walks walks of length between min_walk_length+1 and walk_length+1 from each node of graph
     '''
     graph_nodes = graph.nodes()
     n_nodes = len(graph_nodes)
@@ -36,7 +36,11 @@ def generate_walks(graph, num_walks, walk_length):
     for i in range(num_walks):
         nodes = np.random.permutation(graph_nodes)
         for j in range(n_nodes):
+            walk_length = np.random.randint(
+                min_walk_length, max_walk_length + 1)
             walk = random_walk(graph, nodes[j], walk_length)
+
+            walk += [pad_vec_idx] * (max_walk_length + 1 - len(walk))
             walks.append(walk)
     return walks
 
@@ -49,8 +53,10 @@ pad_vec_idx = 1685894
 # parameters
 num_walks = 5
 walk_length = 10
-# maximum number of 'sentences' (walks) in each pseudo-document
-max_doc_size = 70
+min_walk_length = 7
+max_walk_length = 19
+# maximum number of 'words' in each pseudo-document
+max_doc_size = 100
 path_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 path_to_data = path_root + '/data/'
 
@@ -70,7 +76,7 @@ def main():
         # construct graph from edgelist
         g = nx.read_edgelist(path_to_data + 'edge_lists/' + edgelist)
         # create the pseudo-document representation of the graph
-        doc = generate_walks(g, num_walks, walk_length)
+        doc = generate_walks(g, num_walks, min_walk_length, max_walk_length)
         docs.append(doc)
 
         if idx % round(len(edgelists)/10) == 0:
@@ -79,10 +85,11 @@ def main():
     print('documents generated')
 
     # truncation-padding at the document level, i.e., adding or removing entire 'sentences'
-    docs = [d+[[pad_vec_idx]*(walk_length+1)]*(max_doc_size-len(d))
+    docs = [d+[[pad_vec_idx]*(max_walk_length+1)]*(max_doc_size-len(d))
             if len(d) < max_doc_size else d[:max_doc_size] for d in docs]
 
     docs = np.array(docs).astype('int')
+    print(docs.shape)
     print('document array shape:', docs.shape)
 
     np.save(path_to_data + 'documents.npy', docs, allow_pickle=False)

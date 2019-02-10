@@ -2,13 +2,14 @@ from AttentionWithContext import AttentionWithContext
 import sys
 import json
 import numpy as np
+import os
 
 from keras.models import Model
 from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 
 path_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 path_to_data = path_root + '/data/'

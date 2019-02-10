@@ -11,7 +11,7 @@ from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = True
+is_GPU = False
 save_weights = True
 save_history = True
 
@@ -69,8 +69,10 @@ train_idxs = [int(elt) for elt in train_idxs]
 # create validation set
 np.random.seed(12219)
 idxs_select_train = np.random.choice(
-    range(len(train_idxs)), size=int(len(train_idxs)*0.80), replace=False)
+    range(len(train_idxs)), size=int(len(train_idxs)*0.015), replace=False)  # we only use 0.15% of the data
 idxs_select_val = np.setdiff1d(range(len(train_idxs)), idxs_select_train)
+idxs_select_val = np.random.choice(
+    range(len(idxs_select_val)), size=int(len(idxs_select_val)*0.015), replace=False)
 
 train_idxs_new = [train_idxs[elt] for elt in idxs_select_train]
 val_idxs = [train_idxs[elt] for elt in idxs_select_val]
