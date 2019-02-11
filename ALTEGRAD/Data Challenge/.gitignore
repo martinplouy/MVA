@@ -1,3 +1,7 @@
 **/embeddings.npy
 **/documents.npy
 **/edge_lists/*
+model_*
+model_history_*.json
+predictions_*.txt
+**/predictions_mean.txt
