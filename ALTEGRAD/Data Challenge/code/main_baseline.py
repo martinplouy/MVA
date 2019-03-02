@@ -10,6 +10,9 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 from keras.models import Model
 from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense
 
+from sklearn.model_selection import GridSearchCV
+from keras.wrappers.scikit_learn import KerasRegressor
+
 # = = = = = = = = = = = = = = =
 
 is_GPU = False
@@ -48,14 +51,46 @@ def bidir_gru(my_seq, n_units, is_GPU):
                              merge_mode='concat', weights=None)(my_seq)
 
 
-# = = = = = hyper-parameters = = = = =
+def create_model(n_units=50, drop_rate=0.5, my_optimizer='adam'):
+    sent_ints = Input(shape=(docs_train.shape[2],))
+    sent_wv = Embedding(input_dim=embeddings.shape[0],
+                        output_dim=embeddings.shape[1],
+                        weights=[embeddings],
+                        input_length=docs_train.shape[2],
+                        trainable=False,
+                        )(sent_ints)
 
+    sent_wv_dr = Dropout(drop_rate)(sent_wv)
+    sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+    sent_att_vec, word_att_coeffs = AttentionWithContext(
+        return_coefficients=True)(sent_wa)
+    sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
+    sent_encoder = Model(sent_ints, sent_att_vec_dr)
+
+    doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
+    sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
+    doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
+    doc_att_vec, sent_att_coeffs = AttentionWithContext(
+        return_coefficients=True)(doc_sa)
+    doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
+
+    preds = Dense(units=1,
+                  activation='sigmoid')(doc_att_vec_dr)
+    model = Model(doc_ints, preds)
+
+    model.compile(loss='mean_squared_error',
+                  optimizer=my_optimizer,
+                  metrics=['mae'])
+    return model
+
+
+# = = = = = hyper-parameters = = = = =
 n_units = 50
 drop_rate = 0.5
 batch_size = 96
 nb_epochs = 1
 my_optimizer = 'adam'
-my_patience = 4
+my_patience = 2
 
 # this flag is meant to preprocess only a subsample of the data so that we can test quickly what works and what doesn't work
 quick_run = True
@@ -114,41 +149,19 @@ for tgt in range(4):
 
     # = = = = = defining architecture = = = = =
 
-    sent_ints = Input(shape=(docs_train.shape[2],))
-
-    sent_wv = Embedding(input_dim=embeddings.shape[0],
-                        output_dim=embeddings.shape[1],
-                        weights=[embeddings],
-                        input_length=docs_train.shape[2],
-                        trainable=False,
-                        )(sent_ints)
-
-    sent_wv_dr = Dropout(drop_rate)(sent_wv)
-    sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-    sent_att_vec, word_att_coeffs = AttentionWithContext(
-        return_coefficients=True)(sent_wa)
-    sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
-    sent_encoder = Model(sent_ints, sent_att_vec_dr)
-
-    doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
-    sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
-    doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
-    doc_att_vec, sent_att_coeffs = AttentionWithContext(
-        return_coefficients=True)(doc_sa)
-    doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
-
-    preds = Dense(units=1,
-                  activation='sigmoid')(doc_att_vec_dr)
-    model = Model(doc_ints, preds)
-
-    model.compile(loss='mean_squared_error',
-                  optimizer=my_optimizer,
-                  metrics=['mae'])
+    model = KerasRegressor(build_fn=create_model)
 
     print('model compiled')
 
-    # = = = = = training = = = = =
+    parameters = {
+        'n_units': [10, 50, 100, 200],
+        'drop_rate': [0.2, 0.5, 0.8],
+        'my_optimizer': ['adam', 'sgd', 'nadam']
+    }
 
+    grid = GridSearchCV(estimator=model, param_grid=parameters)
+
+    # = = = = = training = = = = =
     early_stopping = EarlyStopping(monitor='val_loss',
                                    patience=my_patience,
                                    mode='min')
@@ -164,12 +177,12 @@ for tgt in range(4):
     else:
         my_callbacks = [early_stopping]
 
-    model.fit(docs_train,
-              target_train,
-              batch_size=batch_size,
-              epochs=nb_epochs,
-              validation_data=(docs_val, target_val),
-              callbacks=my_callbacks)
+    grid.fit(docs_train,
+             target_train,
+             batch_size=batch_size,
+             epochs=nb_epochs,
+             validation_data=(docs_val, target_val),
+             callbacks=my_callbacks)
 
     predict = model.predict(docs_test).tolist()
     target_test = np.array([target[m.get(elt)]

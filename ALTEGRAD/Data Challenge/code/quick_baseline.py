@@ -3,12 +3,16 @@ import sys
 import json
 import numpy as np
 from sklearn.metrics import mean_squared_error
+import pandas as pd
 import os
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from keras.models import Model
 from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense
+
+from sklearn.model_selection import GridSearchCV
+from keras.wrappers.scikit_learn import KerasRegressor
 
 # = = = = = = = = = = = = = = =
 
@@ -48,61 +52,8 @@ def bidir_gru(my_seq, n_units, is_GPU):
                              merge_mode='concat', weights=None)(my_seq)
 
 
-# = = = = = hyper-parameters = = = = =
-
-n_units = 50
-drop_rate = 0.5
-batch_size = 200
-nb_epochs = 1
-my_optimizer = 'adam'
-my_patience = 4
-
-# = = = = = data loading = = = = =
-
-docs = np.load(path_to_data + 'documents.npy')
-embeddings = np.load(path_to_data + 'embeddings.npy')
-edgelists = np.load(path_to_data + 'embeddings.npy')
-print(docs.shape)
-
-# with open(path_to_data + 'train_idxs.txt', 'r') as file:
-#     train_idxs = file.read().splitlines()
-
-with open(path_to_data + 'edgelists.txt', 'r') as file:
-    docs_idxs = file.read().splitlines()
-
-docs_idxs = [int(elt) for elt in docs_idxs]
-
-train_idxs = [True if idx < 0.8 *
-              len(docs_idxs) else False for (idx, elt) in enumerate(docs_idxs)]
-val_idxs = [True if (idx >= 0.8 * len(docs_idxs) and idx < 0.9 * len(docs_idxs))
-            else False for (idx, elt) in enumerate(docs_idxs)]
-test_idxs = [True if idx >= 0.9 * len(docs_idxs)
-             else False for (idx, elt) in enumerate(docs_idxs)]
-
-train_idxs_new = [x for x, y in zip(docs_idxs, train_idxs) if y == True]
-val_idxs_new = [x for x, y in zip(docs_idxs, val_idxs) if y == True]
-test_idxs_new = [x for x, y in zip(docs_idxs, test_idxs) if y == True]
-
-docs_train = docs[train_idxs, :, :]
-docs_val = docs[val_idxs, :, :]
-docs_test = docs[test_idxs, :, :]
-
-mse_arr = []
-for tgt in range(4):
-    with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
-        target = file.read().splitlines()
-
-    target_train = np.array([target[elt]
-                             for elt in train_idxs_new]).astype('float')
-    target_val = np.array([target[elt]
-                           for elt in val_idxs_new]).astype('float')
-
-    print('data loaded')
-
-    # = = = = = defining architecture = = = = =
-
+def create_model(n_units=50, drop_rate=0.5, my_optimizer='adam'):
     sent_ints = Input(shape=(docs_train.shape[2],))
-
     sent_wv = Embedding(input_dim=embeddings.shape[0],
                         output_dim=embeddings.shape[1],
                         weights=[embeddings],
@@ -131,8 +82,75 @@ for tgt in range(4):
     model.compile(loss='mean_squared_error',
                   optimizer=my_optimizer,
                   metrics=['mae'])
+    return model
+
+
+# = = = = = hyper-parameters = = = = =
+
+n_units = 50
+drop_rate = 0.5
+batch_size = 96
+nb_epochs = 1
+my_optimizer = 'adam'
+my_patience = 2
+
+parameters = {
+    # 'n_units': [10, 50, 100],
+    # 'drop_rate': [0.3, 0.5, 0.7],
+    'my_optimizer': ['adam']
+}
+
+
+# = = = = = data loading = = = = =
+
+docs = np.load(path_to_data + 'documents.npy')
+embeddings = np.load(path_to_data + 'embeddings.npy')
+print(docs.shape)
+
+# with open(path_to_data + 'train_idxs.txt', 'r') as file:
+#     train_idxs = file.read().splitlines()
+
+with open(path_to_data + 'edgelists.txt', 'r') as file:
+    docs_idxs = file.read().splitlines()
+
+docs_idxs = [int(elt) for elt in docs_idxs]
+
+train_idxs = [True if idx < 0.8 *
+              len(docs_idxs) else False for (idx, elt) in enumerate(docs_idxs)]
+val_idxs = [True if (idx >= 0.8 * len(docs_idxs) and idx < 0.9 * len(docs_idxs))
+            else False for (idx, elt) in enumerate(docs_idxs)]
+test_idxs = [True if idx >= 0.9 * len(docs_idxs)
+             else False for (idx, elt) in enumerate(docs_idxs)]
+
+train_idxs_new = [x for x, y in zip(docs_idxs, train_idxs) if y == True]
+val_idxs_new = [x for x, y in zip(docs_idxs, val_idxs) if y == True]
+test_idxs_new = [x for x, y in zip(docs_idxs, test_idxs) if y == True]
+
+docs_train = docs[train_idxs, :, :]
+docs_val = docs[val_idxs, :, :]
+docs_test = docs[test_idxs, :, :]
+
+mse_arr = []
+best_params = []
+for tgt in range(4):
+    with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
+        target = file.read().splitlines()
+
+    target_train = np.array([target[elt]
+                             for elt in train_idxs_new]).astype('float')
+    target_val = np.array([target[elt]
+                           for elt in val_idxs_new]).astype('float')
+
+    print('data loaded')
+
+    # = = = = = defining architecture = = = = =
+
+    model = KerasRegressor(build_fn=create_model)
 
     print('model compiled')
+
+    grid = GridSearchCV(
+        estimator=model, param_grid=parameters, verbose=10, n_jobs=1)
 
     # = = = = = training = = = = =
 
@@ -151,21 +169,25 @@ for tgt in range(4):
     else:
         my_callbacks = [early_stopping]
 
-    model.fit(docs_train,
-              target_train,
-              batch_size=batch_size,
-              epochs=nb_epochs,
-              validation_data=(docs_val, target_val),
-              callbacks=my_callbacks)
+    grid.fit(docs_train,
+             target_train,
+             batch_size=batch_size,
+             epochs=nb_epochs,
+             validation_data=(docs_val, target_val),
+             callbacks=my_callbacks)
 
-    predict = model.predict(docs_test).tolist()
+    predict = grid.predict(docs_test).tolist()
     target_test = np.array([target[elt]
                             for elt in test_idxs_new]).astype('float')
 
     mse = mean_squared_error(target_test, predict)
     mse_arr.append(mse)
     print("mse for label ", tgt, " is ", mse)
-
+    df = pd.DataFrame(grid.cv_results_)
+    df.to_csv(path_to_data + "cv_results_target_" + str(tgt) + ".csv")
+    best_params.append(grid.best_params_)
     print('* * * * * * * target', tgt, 'done * * * * * * *')
 
 print('* * * * * * * MSE for all targets is : ', np.mean(mse_arr))
+for tgt in range(len(best_params)):
+    print("the best params for target ", str(tgt), " are ", best_params[tgt])
