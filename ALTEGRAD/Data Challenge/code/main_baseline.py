@@ -2,6 +2,7 @@ from AttentionWithContext import AttentionWithContext
 import sys
 import json
 import numpy as np
+import pandas as pd
 from sklearn.metrics import mean_squared_error
 import os
 
@@ -85,12 +86,19 @@ def create_model(n_units=50, drop_rate=0.5, my_optimizer='adam'):
 
 
 # = = = = = hyper-parameters = = = = =
-n_units = 50
+n_units = 10
 drop_rate = 0.5
 batch_size = 96
 nb_epochs = 1
 my_optimizer = 'adam'
 my_patience = 2
+
+parameters = {
+    # 'n_units': [10, 50, 100],
+    # 'drop_rate': [0.3, 0.5, 0.7],
+    'my_optimizer': ['adam']
+}
+
 
 # this flag is meant to preprocess only a subsample of the data so that we can test quickly what works and what doesn't work
 quick_run = True
@@ -135,6 +143,7 @@ docs_val = docs[idxs_select_val, :, :]
 docs_test = docs[idxs_select_test, :, :]
 
 mse_arr = []
+best_params = []
 for tgt in range(4):
 
     with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
@@ -153,13 +162,7 @@ for tgt in range(4):
 
     print('model compiled')
 
-    parameters = {
-        'n_units': [10, 50, 100, 200],
-        'drop_rate': [0.2, 0.5, 0.8],
-        'my_optimizer': ['adam', 'sgd', 'nadam']
-    }
-
-    grid = GridSearchCV(estimator=model, param_grid=parameters)
+    grid = GridSearchCV(estimator=model, param_grid=parameters, verbose=10)
 
     # = = = = = training = = = = =
     early_stopping = EarlyStopping(monitor='val_loss',
@@ -184,23 +187,26 @@ for tgt in range(4):
              validation_data=(docs_val, target_val),
              callbacks=my_callbacks)
 
-    predict = model.predict(docs_test).tolist()
+    predict = grid.predict(docs_test).tolist()
     target_test = np.array([target[m.get(elt)]
                             for elt in test_idxs]).astype('float')
-
-    print(model.evaluate(docs_test, target_test))
 
     mse = mean_squared_error(target_test, predict)
     mse_arr.append(mse)
     print("mse for label ", tgt, " is ", mse)
+    df = pd.DataFrame(grid.cv_results_)
+    df.to_csv(path_to_data + "cv_results_target_" + str(tgt) + ".csv")
+    best_params.append(grid.best_params_)
 
-    hist = model.history.history
+    # hist = model.history.history
 
-    if save_history:
-        with open(path_to_data + 'model_history_' + str(tgt) + '.json', 'w') as file:
-            json.dump(hist, file, sort_keys=False, indent=4)
+    # if save_history:
+    #     with open(path_to_data + 'model_history_' + str(tgt) + '.json', 'w') as file:
+    #         json.dump(hist, file, sort_keys=False, indent=4)
 
     print('* * * * * * * target', tgt, 'done * * * * * * *')
 
 
 print('* * * * * * * MSE for all targets is : ', np.mean(mse_arr))
+for tgt in range(len(best_params)):
+    print("the best params for target ", str(tgt), " are ", best_params[tgt])
