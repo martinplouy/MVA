@@ -1,5 +1,6 @@
 **/embeddings.npy
 **/documents.npy
+**/edgelists.txt
 **/edge_lists/*
 model_*
 model_history_*.json

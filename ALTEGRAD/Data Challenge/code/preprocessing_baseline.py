@@ -62,6 +62,8 @@ path_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 path_to_data = path_root + '/data/'
 
 # = = = = = = = = = = = = = = =
+# this flag is meant to preprocess only a subsample of the data so that we can test quickly what works and what doesn't work
+quick_preprocessing = True
 
 
 def main():
@@ -71,6 +73,20 @@ def main():
     edgelists = os.listdir(path_to_data + 'edge_lists/')
     # important to maintain alignment with the targets!
     edgelists.sort(key=natural_keys)
+
+    if quick_preprocessing:
+        with open(path_to_data + 'train_idxs.txt', 'r') as file:
+            train_idxs = file.read().splitlines()
+
+        # we only take graphs which are part of the training set
+        edges_idxs = np.random.choice(len(train_idxs), 50, replace=False)
+
+        edgelists = [edgelists[elt] for elt in edges_idxs]
+
+        with open(path_to_data + 'edgelists.txt', 'w') as f:
+            for item in edgelists:
+                itemArr = item.split('.')
+                f.write("%s\n" % itemArr[0])
 
     docs = []
     for idx, edgelist in enumerate(edgelists):
