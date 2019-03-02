@@ -2,6 +2,7 @@ from AttentionWithContext import AttentionWithContext
 import sys
 import json
 import numpy as np
+from sklearn.metrics import mean_squared_error
 import os
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -51,8 +52,8 @@ def bidir_gru(my_seq, n_units, is_GPU):
 
 n_units = 50
 drop_rate = 0.5
-batch_size = 96
-nb_epochs = 10
+batch_size = 200
+nb_epochs = 1
 my_optimizer = 'adam'
 my_patience = 4
 
@@ -71,11 +72,11 @@ with open(path_to_data + 'edgelists.txt', 'r') as file:
 
 docs_idxs = [int(elt) for elt in docs_idxs]
 
-train_idxs = [True if idx < 0.6 *
+train_idxs = [True if idx < 0.8 *
               len(docs_idxs) else False for (idx, elt) in enumerate(docs_idxs)]
-val_idxs = [True if (idx >= 0.6 * len(docs_idxs) and idx < 0.8 * len(docs_idxs))
+val_idxs = [True if (idx >= 0.8 * len(docs_idxs) and idx < 0.9 * len(docs_idxs))
             else False for (idx, elt) in enumerate(docs_idxs)]
-test_idxs = [True if idx >= 0.8 * len(docs_idxs)
+test_idxs = [True if idx >= 0.9 * len(docs_idxs)
              else False for (idx, elt) in enumerate(docs_idxs)]
 
 train_idxs_new = [x for x, y in zip(docs_idxs, train_idxs) if y == True]
@@ -86,6 +87,7 @@ docs_train = docs[train_idxs, :, :]
 docs_val = docs[val_idxs, :, :]
 docs_test = docs[test_idxs, :, :]
 
+mse_arr = []
 for tgt in range(4):
     with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
         target = file.read().splitlines()
@@ -160,7 +162,10 @@ for tgt in range(4):
     target_test = np.array([target[elt]
                             for elt in test_idxs_new]).astype('float')
 
-    mse = np.mean([(x - y)**2 for x, y in zip(predict, target_test)])
+    mse = mean_squared_error(target_test, predict)
+    mse_arr.append(mse)
     print("mse for label ", tgt, " is ", mse)
 
     print('* * * * * * * target', tgt, 'done * * * * * * *')
+
+print('* * * * * * * MSE for all targets is : ', np.mean(mse_arr))

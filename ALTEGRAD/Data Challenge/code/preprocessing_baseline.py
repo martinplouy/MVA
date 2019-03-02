@@ -52,10 +52,10 @@ def generate_walks(graph, num_walks, min_walk_length, max_walk_length):
 pad_vec_idx = 1685894
 
 # parameters
-num_walks = 5
+num_walks = 1
 walk_length = 10
-min_walk_length = 7
-max_walk_length = 19
+min_walk_length = 10
+max_walk_length = 10
 # maximum number of 'words' in each pseudo-document
 max_doc_size = 100
 path_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -78,8 +78,10 @@ def main():
         with open(path_to_data + 'train_idxs.txt', 'r') as file:
             train_idxs = file.read().splitlines()
 
+        train_idxs = [int(elt) for elt in train_idxs]
+
         # we only take graphs which are part of the training set
-        edges_idxs = np.random.choice(len(train_idxs), 50, replace=False)
+        edges_idxs = np.random.choice(train_idxs, 5000, replace=False)
 
         edgelists = [edgelists[elt] for elt in edges_idxs]
 

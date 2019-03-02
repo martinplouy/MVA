@@ -2,6 +2,7 @@ from AttentionWithContext import AttentionWithContext
 import sys
 import json
 import numpy as np
+from sklearn.metrics import mean_squared_error
 import os
 
 from keras.callbacks import EarlyStopping, ModelCheckpoint
@@ -52,10 +53,12 @@ def bidir_gru(my_seq, n_units, is_GPU):
 n_units = 50
 drop_rate = 0.5
 batch_size = 96
-nb_epochs = 10
+nb_epochs = 1
 my_optimizer = 'adam'
 my_patience = 4
 
+# this flag is meant to preprocess only a subsample of the data so that we can test quickly what works and what doesn't work
+quick_run = True
 # = = = = = data loading = = = = =
 
 docs = np.load(path_to_data + 'documents.npy')
@@ -66,29 +69,46 @@ with open(path_to_data + 'train_idxs.txt', 'r') as file:
 
 train_idxs = [int(elt) for elt in train_idxs]
 
+m = {}
+for (idx, elt) in enumerate(train_idxs):
+    m[elt] = idx
+
+if quick_run:
+    with open(path_to_data + 'edgelists.txt', 'r') as file:
+        subset_edgelists_idxs = file.read().splitlines()
+    subset_edgelists_idxs = [int(elt) for elt in subset_edgelists_idxs]
+    train_idxs = subset_edgelists_idxs
+
 # create validation set
 np.random.seed(12219)
 idxs_select_train = np.random.choice(
-    range(len(train_idxs)), size=int(len(train_idxs)*0.015), replace=False)  # we only use 0.15% of the data
-idxs_select_val = np.setdiff1d(range(len(train_idxs)), idxs_select_train)
+    range(len(train_idxs)), size=int(len(train_idxs)*0.8), replace=False)
+idxs_select_val_test = np.setdiff1d(range(len(train_idxs)), idxs_select_train)
+
 idxs_select_val = np.random.choice(
-    range(len(idxs_select_val)), size=int(len(idxs_select_val)*0.015), replace=False)
+    range(len(idxs_select_val_test)), size=int(len(idxs_select_val_test)*0.5), replace=False)
+
+idxs_select_test = np.setdiff1d(
+    range(len(idxs_select_val_test)), idxs_select_val)
 
 train_idxs_new = [train_idxs[elt] for elt in idxs_select_train]
 val_idxs = [train_idxs[elt] for elt in idxs_select_val]
+test_idxs = [train_idxs[elt] for elt in idxs_select_test]
 
-docs_train = docs[train_idxs_new, :, :]
-docs_val = docs[val_idxs, :, :]
+docs_train = docs[idxs_select_train, :, :]
+docs_val = docs[idxs_select_val, :, :]
+docs_test = docs[idxs_select_test, :, :]
 
+mse_arr = []
 for tgt in range(4):
 
     with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
         target = file.read().splitlines()
 
-    target_train = np.array([target[elt]
-                             for elt in idxs_select_train]).astype('float')
-    target_val = np.array([target[elt]
-                           for elt in idxs_select_val]).astype('float')
+    target_train = np.array([target[m.get(elt)]
+                             for elt in train_idxs_new]).astype('float')
+    target_val = np.array([target[m.get(elt)]
+                           for elt in val_idxs]).astype('float')
 
     print('data loaded')
 
@@ -151,6 +171,16 @@ for tgt in range(4):
               validation_data=(docs_val, target_val),
               callbacks=my_callbacks)
 
+    predict = model.predict(docs_test).tolist()
+    target_test = np.array([target[m.get(elt)]
+                            for elt in test_idxs]).astype('float')
+
+    print(model.evaluate(docs_test, target_test))
+
+    mse = mean_squared_error(target_test, predict)
+    mse_arr.append(mse)
+    print("mse for label ", tgt, " is ", mse)
+
     hist = model.history.history
 
     if save_history:
@@ -158,3 +188,6 @@ for tgt in range(4):
             json.dump(hist, file, sort_keys=False, indent=4)
 
     print('* * * * * * * target', tgt, 'done * * * * * * *')
+
+
+print('* * * * * * * MSE for all targets is : ', np.mean(mse_arr))
