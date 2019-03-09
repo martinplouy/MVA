@@ -27,22 +27,54 @@ def random_walk(graph, node, walk_length):
     return walk
 
 
+def random_walk_biased(graph, node, walk_length, bias_dict):
+    walk = [node]
+    for i in range(walk_length):
+        neighbors = graph.neighbors(walk[i])
+        neighbors_list = list(neighbors)
+        probas = None
+        if i > 0:
+            probas = bias_dict[walk[i]]
+        walk.append(np.random.choice(a=neighbors_list, p=probas))
+    return walk
+
+
 def generate_walks(graph, num_walks, min_walk_length, max_walk_length):
     '''
     samples num_walks walks of length between min_walk_length+1 and walk_length+1 from each node of graph
     '''
     graph_nodes = graph.nodes()
     n_nodes = len(graph_nodes)
+    bias_dict = {}
+    p = 1
+    q = 0.5
+    for n in graph_nodes:
+        neighbors = graph.neighbors(n)
+        neighbors_list = list(neighbors)
+        probas = []
+        for neigh in neighbors_list:
+            shortest_path = nx.shortest_path_length(graph, n, neigh)
+            if shortest_path == 0:
+                probas.append(1/p)
+            elif shortest_path == 2:
+                probas.append(1/q)
+            else:
+                probas.append(1)
+
+        Z = np.sum(probas)
+        probas /= Z
+        bias_dict[n] = probas
     walks = []
     for i in range(num_walks):
         nodes = np.random.permutation(graph_nodes)
         for j in range(n_nodes):
             walk_length = np.random.randint(
                 min_walk_length, max_walk_length + 1)
-            walk = random_walk(graph, nodes[j], walk_length)
+            walk = random_walk_biased(graph, nodes[j], walk_length, bias_dict)
 
             walk += [pad_vec_idx] * (max_walk_length + 1 - len(walk))
             walks.append(walk)
+
     return walks
 
 # = = = = = = = = = = = = = = =
@@ -52,10 +84,10 @@ def generate_walks(graph, num_walks, min_walk_length, max_walk_length):
 pad_vec_idx = 1685894
 
 # parameters
-num_walks = 1
+num_walks = 5
 walk_length = 10
-min_walk_length = 10
-max_walk_length = 10
+min_walk_length = 7
+max_walk_length = 19
 # maximum number of 'words' in each pseudo-document
 max_doc_size = 100
 path_root = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -63,7 +95,7 @@ path_to_data = path_root + '/data/'
 
 # = = = = = = = = = = = = = = =
 # this flag is meant to preprocess only a subsample of the data so that we can test quickly what works and what doesn't work
-quick_preprocessing = True
+quick_preprocessing = False
 
 
 def main():
@@ -80,12 +112,12 @@ def main():
 
         train_idxs = [int(elt) for elt in train_idxs]
 
-        # we only take graphs which are part of the training set
+        # # we only take graphs which are part of the training set
         edges_idxs = np.random.choice(train_idxs, 5000, replace=False)
 
         edgelists = [edgelists[elt] for elt in edges_idxs]
 
-        with open(path_to_data + 'edgelists.txt', 'w') as f:
+        with open(path_to_data + 'graphlists.txt', 'w') as f:
             for item in edgelists:
                 itemArr = item.split('.')
                 f.write("%s\n" % itemArr[0])
@@ -94,11 +126,12 @@ def main():
     for idx, edgelist in enumerate(edgelists):
         # construct graph from edgelist
         g = nx.read_edgelist(path_to_data + 'edge_lists/' + edgelist)
+
         # create the pseudo-document representation of the graph
         doc = generate_walks(g, num_walks, min_walk_length, max_walk_length)
         docs.append(doc)
 
-        if idx % round(len(edgelists)/10) == 0:
+        if len(edgelists) > 10 and idx % round(len(edgelists)/100) == 0:
             print(idx)
 
     print('documents generated')

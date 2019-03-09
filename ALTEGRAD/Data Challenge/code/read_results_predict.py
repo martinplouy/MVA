@@ -102,6 +102,8 @@ for tgt in range(4):
     # relevant hyper-parameters
     n_units = 50
     drop_rate = 0  # prediction mode
+    if tgt == 3:
+        n_units = 10
 
     sent_ints = Input(shape=(docs_test.shape[2],))
 
@@ -126,13 +128,20 @@ for tgt in range(4):
         return_coefficients=True)(doc_sa)
     doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
 
-    preds = Dense(units=1, activation='sigmoid')(doc_att_vec_dr)
+    preds = Dense(units=1)(doc_att_vec_dr)
 
     model = Model(doc_ints, preds)
 
     model.load_weights(path_to_data + 'model_' + str(tgt))
 
-    all_preds_han.append(model.predict(docs_test).tolist())
+    predict = model.predict(docs_test).tolist()
+
+    all_preds_han.append(predict)
+    if tgt == 3:
+        with open(path_to_data + 'predictions_model_3.txt', 'w') as f:
+            for idx, pred in enumerate(predict):
+                f.write("%s\n" % pred)
+
 
 # flatten
 all_preds_mean = [elt for sublist in all_preds_mean for elt in sublist]

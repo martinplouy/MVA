@@ -12,7 +12,7 @@ from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU
 
 # = = = = = = = = = = = = = = =
 
-is_GPU = False
+is_GPU = True
 save_weights = True
 save_history = True
 
@@ -50,15 +50,15 @@ def bidir_gru(my_seq, n_units, is_GPU):
 
 # = = = = = hyper-parameters = = = = =
 
-n_units = 50
-drop_rate = 0.5
+n_units = 10
+drop_rate = 0.3
 batch_size = 96
-nb_epochs = 1
+nb_epochs = 10
 my_optimizer = 'adam'
 my_patience = 4
 
 # this flag is meant to preprocess only a subsample of the data so that we can test quickly what works and what doesn't work
-quick_run = True
+quick_run = False
 # = = = = = data loading = = = = =
 
 docs = np.load(path_to_data + 'documents.npy')
@@ -69,48 +69,78 @@ with open(path_to_data + 'train_idxs.txt', 'r') as file:
 
 train_idxs = [int(elt) for elt in train_idxs]
 
-m = {}
+train_idxs_map = {}
 for (idx, elt) in enumerate(train_idxs):
-    m[elt] = idx
+    train_idxs_map[elt] = idx
+
 
 if quick_run:
-    with open(path_to_data + 'edgelists.txt', 'r') as file:
-        subset_edgelists_idxs = file.read().splitlines()
-    subset_edgelists_idxs = [int(elt) for elt in subset_edgelists_idxs]
-    train_idxs = subset_edgelists_idxs
+    with open(path_to_data + 'graphlists.txt', 'r') as file:
+        graphlists = file.read().splitlines()
+    graphlists = [int(elt) for elt in graphlists]
+    train_idxs = graphlists
 
-# create validation set
-np.random.seed(12219)
-idxs_select_train = np.random.choice(
-    range(len(train_idxs)), size=int(len(train_idxs)*0.8), replace=False)
-idxs_select_val_test = np.setdiff1d(range(len(train_idxs)), idxs_select_train)
+    # create validation set
+    np.random.seed(12219)
+    idxs_select_train = np.random.choice(
+        range(len(train_idxs)), size=int(len(train_idxs)*0.8), replace=False)
+    idxs_select_val_test = np.setdiff1d(
+        range(len(train_idxs)), idxs_select_train)
 
-idxs_select_val = np.random.choice(
-    range(len(idxs_select_val_test)), size=int(len(idxs_select_val_test)*0.5), replace=False)
+    idxs_select_val = np.random.choice(
+        range(len(idxs_select_val_test)), size=int(len(idxs_select_val_test)*0.5), replace=False)
 
-idxs_select_test = np.setdiff1d(
-    range(len(idxs_select_val_test)), idxs_select_val)
+    idxs_select_test = np.setdiff1d(
+        range(len(idxs_select_val_test)), idxs_select_val)
 
-train_idxs_new = [train_idxs[elt] for elt in idxs_select_train]
-val_idxs = [train_idxs[elt] for elt in idxs_select_val]
-test_idxs = [train_idxs[elt] for elt in idxs_select_test]
+    train_idxs_new = [train_idxs[elt] for elt in idxs_select_train]
+    val_idxs = [train_idxs[elt] for elt in idxs_select_val]
+    test_idxs = [train_idxs[elt] for elt in idxs_select_test]
 
-docs_train = docs[idxs_select_train, :, :]
-docs_val = docs[idxs_select_val, :, :]
-docs_test = docs[idxs_select_test, :, :]
+    docs_train = docs[idxs_select_train, :, :]
+    docs_val = docs[idxs_select_val, :, :]
+    docs_test = docs[idxs_select_test, :, :]
+else:
+    # create validation set
+    np.random.seed(12219)
+    idxs_select_train = np.random.choice(
+        range(len(train_idxs)), size=int(len(train_idxs)*0.80), replace=False)
+    idxs_select_val = np.setdiff1d(range(len(train_idxs)), idxs_select_train)
+    idxs_select_val_test = np.setdiff1d(
+        range(len(train_idxs)), idxs_select_train)
+
+    idxs_select_val = np.random.choice(
+        range(len(idxs_select_val_test)), size=int(len(idxs_select_val_test)*0.5), replace=False)
+
+    idxs_select_test = np.setdiff1d(
+        range(len(idxs_select_val_test)), idxs_select_val)
+
+    train_idxs_new = [train_idxs[elt] for elt in idxs_select_train]
+    val_idxs = [train_idxs[elt] for elt in idxs_select_val]
+    test_idxs = [train_idxs[elt] for elt in idxs_select_test]
+
+    docs_train = docs[train_idxs_new, :, :]
+    docs_val = docs[val_idxs, :, :]
+    docs_test = docs[test_idxs, :, :]
+
 
 mse_arr = []
+
 for tgt in range(4):
+
+    n_units_arr = [50, 50, 50, 10]
+    optimizer = ["nadam", 'adam', 'adam', 'adam']
+    drop_rate = [0.3, 0.3, 0.3, 0.7]
+    batch_sizes = [96, 96, 96, 96]
+    print('* * * * * * * training model ', tgt, ' * * * * * * *')
 
     with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
         target = file.read().splitlines()
 
-    target_train = np.array([target[m.get(elt)]
+    target_train = np.array([target[train_idxs_map.get(elt)]
                              for elt in train_idxs_new]).astype('float')
-    target_val = np.array([target[m.get(elt)]
+    target_val = np.array([target[train_idxs_map.get(elt)]
                            for elt in val_idxs]).astype('float')
-
-    print('data loaded')
 
     # = = = = = defining architecture = = = = =
 
@@ -123,26 +153,25 @@ for tgt in range(4):
                         trainable=False,
                         )(sent_ints)
 
-    sent_wv_dr = Dropout(drop_rate)(sent_wv)
-    sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
+    sent_wv_dr = Dropout(drop_rate[tgt])(sent_wv)
+    sent_wa = bidir_gru(sent_wv_dr, n_units_arr[tgt], is_GPU)
     sent_att_vec, word_att_coeffs = AttentionWithContext(
         return_coefficients=True)(sent_wa)
-    sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
+    sent_att_vec_dr = Dropout(drop_rate[tgt])(sent_att_vec)
     sent_encoder = Model(sent_ints, sent_att_vec_dr)
 
     doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
     sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
-    doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
+    doc_sa = bidir_gru(sent_att_vecs_dr, n_units_arr[tgt], is_GPU)
     doc_att_vec, sent_att_coeffs = AttentionWithContext(
         return_coefficients=True)(doc_sa)
-    doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
+    doc_att_vec_dr = Dropout(drop_rate[tgt])(doc_att_vec)
 
-    preds = Dense(units=1,
-                  activation='sigmoid')(doc_att_vec_dr)
+    preds = Dense(units=1)(doc_att_vec_dr)
     model = Model(doc_ints, preds)
 
     model.compile(loss='mean_squared_error',
-                  optimizer=my_optimizer,
+                  optimizer=optimizer[tgt],
                   metrics=['mae'])
 
     print('model compiled')
@@ -159,27 +188,24 @@ for tgt in range(4):
                                    save_best_only=True,
                                    save_weights_only=True)
 
-    if save_weights:
+    if save_weights and not quick_run:
         my_callbacks = [early_stopping, checkpointer]
     else:
         my_callbacks = [early_stopping]
 
     model.fit(docs_train,
               target_train,
-              batch_size=batch_size,
+              batch_size=batch_sizes[tgt],
               epochs=nb_epochs,
               validation_data=(docs_val, target_val),
               callbacks=my_callbacks)
 
     predict = model.predict(docs_test).tolist()
-    target_test = np.array([target[m.get(elt)]
+    target_test = np.array([target[train_idxs_map.get(elt)]
                             for elt in test_idxs]).astype('float')
-
-    print(model.evaluate(docs_test, target_test))
 
     mse = mean_squared_error(target_test, predict)
     mse_arr.append(mse)
-    print("mse for label ", tgt, " is ", mse)
 
     hist = model.history.history
 
