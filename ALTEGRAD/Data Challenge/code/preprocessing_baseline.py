@@ -137,6 +137,7 @@ def main():
     print('documents generated')
 
     # truncation-padding at the document level, i.e., adding or removing entire 'sentences'
+    # 93000 docs have an average number of nodes of 18, and an average number of edges of 18.6
     docs = [d+[[pad_vec_idx]*(max_walk_length+1)]*(max_doc_size-len(d))
             if len(d) < max_doc_size else d[:max_doc_size] for d in docs]
 
