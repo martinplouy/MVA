@@ -38,7 +38,11 @@ def get_average_features(filenames):
         # Remove location features (but we could use them?)
         patient_features = patient_features[:, 3:]
 
-        aggregated_features = np.mean(patient_features, axis=0)
+        aggregated_features_1 = np.max(patient_features, axis=0)
+        aggregated_features_2 = np.mean(patient_features, axis=0)
+        aggregated_features = np.concatenate((aggregated_features_1,
+                                              aggregated_features_2))
+        # print(aggregated_features.shape)
         features.append(aggregated_features)
 
     features = np.stack(features, axis=0)
@@ -84,6 +88,8 @@ if __name__ == "__main__":
     # Get the resnet features and aggregate them by the average
     features_train = get_average_features(filenames_train)
     features_test = get_average_features(filenames_test)
+
+    print(features_train.shape)
 
     # -------------------------------------------------------------------------
     # Use the average resnet features to predict the labels
