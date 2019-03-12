@@ -2,7 +2,6 @@ from AttentionWithContext import AttentionWithContext
 import sys
 import json
 import numpy as np
-import pandas as pd
 from sklearn.metrics import mean_squared_error
 import os
 
@@ -10,9 +9,6 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint
 
 from keras.models import Model
 from keras.layers import Input, Embedding, Dropout, Bidirectional, GRU, CuDNNGRU, TimeDistributed, Dense
-
-from sklearn.model_selection import GridSearchCV
-from keras.wrappers.scikit_learn import KerasRegressor
 
 # = = = = = = = = = = = = = = =
 
@@ -52,52 +48,14 @@ def bidir_gru(my_seq, n_units, is_GPU):
                              merge_mode='concat', weights=None)(my_seq)
 
 
-def create_model(n_units=50, drop_rate=0.5, my_optimizer='adam'):
-    sent_ints = Input(shape=(docs_train.shape[2],))
-    sent_wv = Embedding(input_dim=embeddings.shape[0],
-                        output_dim=embeddings.shape[1],
-                        weights=[embeddings],
-                        input_length=docs_train.shape[2],
-                        trainable=False,
-                        )(sent_ints)
-
-    sent_wv_dr = Dropout(drop_rate)(sent_wv)
-    sent_wa = bidir_gru(sent_wv_dr, n_units, is_GPU)
-    sent_att_vec, word_att_coeffs = AttentionWithContext(
-        return_coefficients=True)(sent_wa)
-    sent_att_vec_dr = Dropout(drop_rate)(sent_att_vec)
-    sent_encoder = Model(sent_ints, sent_att_vec_dr)
-
-    doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
-    sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
-    doc_sa = bidir_gru(sent_att_vecs_dr, n_units, is_GPU)
-    doc_att_vec, sent_att_coeffs = AttentionWithContext(
-        return_coefficients=True)(doc_sa)
-    doc_att_vec_dr = Dropout(drop_rate)(doc_att_vec)
-
-    preds = Dense(units=1)(doc_att_vec_dr)
-    model = Model(doc_ints, preds)
-
-    model.compile(loss='mean_squared_error',
-                  optimizer=my_optimizer,
-                  metrics=['mae'])
-    return model
-
-
 # = = = = = hyper-parameters = = = = =
+
 n_units = 10
-drop_rate = 0.5
+drop_rate = 0.3
 batch_size = 96
-nb_epochs = 10
-my_optimizer = 'adam'
-my_patience = 2
-
-parameters = {
-    # 'n_units': [10, 50, 100],
-    # 'drop_rate': [0.3, 0.5, 0.7],
-    'my_optimizer': ['adam']
-}
-
+nb_epochs = 5
+my_optimizer = 'nadam'
+my_patience = 4
 
 # this flag is meant to preprocess only a subsample of the data so that we can test quickly what works and what doesn't work
 quick_run = False
@@ -167,13 +125,15 @@ else:
 
 
 mse_arr = []
-best_params = []
-for tgt in range(4):
 
-    n_units_arr = [50, 50, 50, 10]
-    optimizer = ["nadam", 'adam', 'adam', 'adam']
-    drop_rate = [0.3, 0.3, 0.3, 0.7]
-    batch_sizes = [96, 96, 96, 96]
+n_units_arr_doc = [50, 50, 50, 50]
+n_units_arr_sentence = [50, 50, 50, 10]
+optimizer = ["nadam", 'adam', 'adam', 'nadam']
+drop_rate = [0.3, 0.3, 0.3, 0.3]
+batch_sizes = [96, 96, 96, 256]
+
+for tgt in range(3, 4):
+
     print('* * * * * * * training model ', tgt, ' * * * * * * *')
 
     with open(path_to_data + 'targets/train/target_' + str(tgt) + '.txt', 'r') as file:
@@ -186,13 +146,40 @@ for tgt in range(4):
 
     # = = = = = defining architecture = = = = =
 
-    model = KerasRegressor(build_fn=create_model)
+    sent_ints = Input(shape=(docs_train.shape[2],))
+
+    sent_wv = Embedding(input_dim=embeddings.shape[0],
+                        output_dim=embeddings.shape[1],
+                        weights=[embeddings],
+                        input_length=docs_train.shape[2],
+                        trainable=False,
+                        )(sent_ints)
+
+    sent_wv_dr = Dropout(drop_rate[tgt])(sent_wv)
+    sent_wa = bidir_gru(sent_wv_dr, n_units_arr_sentence[tgt], is_GPU)
+    sent_att_vec, word_att_coeffs = AttentionWithContext(
+        return_coefficients=True)(sent_wa)
+    sent_att_vec_dr = Dropout(drop_rate[tgt])(sent_att_vec)
+    sent_encoder = Model(sent_ints, sent_att_vec_dr)
+
+    doc_ints = Input(shape=(docs_train.shape[1], docs_train.shape[2],))
+    sent_att_vecs_dr = TimeDistributed(sent_encoder)(doc_ints)
+    doc_sa = bidir_gru(sent_att_vecs_dr, n_units_arr_doc[tgt], is_GPU)
+    doc_att_vec, sent_att_coeffs = AttentionWithContext(
+        return_coefficients=True)(doc_sa)
+    doc_att_vec_dr = Dropout(drop_rate[tgt])(doc_att_vec)
+
+    preds = Dense(units=1)(doc_att_vec_dr)
+    model = Model(doc_ints, preds)
+
+    model.compile(loss='mean_squared_error',
+                  optimizer=optimizer[tgt],
+                  metrics=['mae'])
 
     print('model compiled')
 
-    grid = GridSearchCV(estimator=model, param_grid=parameters, verbose=10)
-
     # = = = = = training = = = = =
+
     early_stopping = EarlyStopping(monitor='val_loss',
                                    patience=my_patience,
                                    mode='min')
@@ -208,33 +195,27 @@ for tgt in range(4):
     else:
         my_callbacks = [early_stopping]
 
-    grid.fit(docs_train,
-             target_train,
-             batch_size=batch_size,
-             epochs=nb_epochs,
-             validation_data=(docs_val, target_val),
-             callbacks=my_callbacks)
+    model.fit(docs_train,
+              target_train,
+              batch_size=batch_sizes[tgt],
+              epochs=nb_epochs,
+              validation_data=(docs_val, target_val),
+              callbacks=my_callbacks)
 
-    predict = grid.predict(docs_test).tolist()
-    target_test = np.array([target[m.get(elt)]
+    predict = model.predict(docs_test).tolist()
+    target_test = np.array([target[train_idxs_map.get(elt)]
                             for elt in test_idxs]).astype('float')
 
     mse = mean_squared_error(target_test, predict)
     mse_arr.append(mse)
-    print("mse for label ", tgt, " is ", mse)
-    df = pd.DataFrame(grid.cv_results_)
-    df.to_csv(path_to_data + "cv_results_target_" + str(tgt) + ".csv")
-    best_params.append(grid.best_params_)
 
-    # hist = model.history.history
+    hist = model.history.history
 
-    # if save_history:
-    #     with open(path_to_data + 'model_history_' + str(tgt) + '.json', 'w') as file:
-    #         json.dump(hist, file, sort_keys=False, indent=4)
+    if save_history:
+        with open(path_to_data + 'model_history_' + str(tgt) + '.json', 'w') as file:
+            json.dump(hist, file, sort_keys=False, indent=4)
 
     print('* * * * * * * target', tgt, 'done * * * * * * *')
 
 
 print('* * * * * * * MSE for all targets is : ', np.mean(mse_arr))
-for tgt in range(len(best_params)):
-    print("the best params for target ", str(tgt), " are ", best_params[tgt])

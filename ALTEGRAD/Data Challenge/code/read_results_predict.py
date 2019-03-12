@@ -64,7 +64,7 @@ for tgt in range(4):
 
     print('* * * * * * *', tgt, '* * * * * * *')
 
-    with open(path_to_data + '/model_history_' + str(tgt) + '.json', 'r') as file:
+    with open(path_to_data + 'model_history_' + str(tgt) + '.json', 'r') as file:
         hist = json.load(file)
 
     val_mse = hist['val_loss']
