@@ -12,7 +12,9 @@ import sklearn
 import sklearn.linear_model
 import sklearn.metrics
 import sklearn.model_selection
-
+from sklearn.ensemble        import RandomForestRegressor
+from sklearn.model_selection import GridSearchCV
+from sklearn.utils           import shuffle
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--num_runs", required=True, type=int,
@@ -38,7 +40,11 @@ def get_average_features(filenames):
         # Remove location features (but we could use them?)
         patient_features = patient_features[:, 3:]
 
-        aggregated_features = np.mean(patient_features, axis=0)
+        aggregated_features_1 = np.max(patient_features, axis=0)
+        aggregated_features_2 = np.mean(patient_features, axis=0)
+        aggregated_features = np.concatenate((aggregated_features_1,
+                                              aggregated_features_2))
+        # print(aggregated_features.shape)
         features.append(aggregated_features)
 
     features = np.stack(features, axis=0)
@@ -81,51 +87,70 @@ if __name__ == "__main__":
         assert filename.is_file(), filename
     ids_test = [f.stem for f in filenames_test]
 
+
     # Get the resnet features and aggregate them by the average
     features_train = get_average_features(filenames_train)
     features_test = get_average_features(filenames_test)
 
+    features_train_shuf, labels_train_shuf = shuffle(features_train, labels_train, random_state=0)
+    
     # -------------------------------------------------------------------------
     # Use the average resnet features to predict the labels
 
     # Multiple cross validations on the training set
-    aucs = []
-    for seed in range(args.num_runs):
-        # Use logistic regression with L2 penalty
-        estimator = sklearn.linear_model.LogisticRegression(
-            penalty="l2", C=1.0, solver="liblinear")
+    #  aucs = []
+    #  for seed in range(args.num_runs):
+    #      # Use logistic regression with L2 penalty
+        
+    #     estimator = RandomForestRegression(
+    #          best_estimator)
+    # #     #estimator = sklearn.linear_model.LogisticRegression(
+    # #        # penalty="l2", C=1.0, solver="liblinear")
 
-        cv = sklearn.model_selection.StratifiedKFold(n_splits=args.num_splits, shuffle=True,
-                                                     random_state=seed)
+    #      cv = sklearn.model_selection.StratifiedKFold(n_splits=args.num_splits, shuffle=True,
+    #                                                   random_state=seed)
 
-        # Cross validation on the training set
-        auc = sklearn.model_selection.cross_val_score(estimator, X=features_train, y=labels_train,
-                                                      cv=cv, scoring="roc_auc", verbose=0)
+    # #     # Cross validation on the training set
+    #      auc = sklearn.model_selection.cross_val_score(estimator, X=features_train, y=labels_train,
+    # #                                                   cv=cv, scoring="roc_auc", verbose=0)
 
-        aucs.append(auc)
+    #      aucs.append(auc)
 
-    aucs = np.array(aucs)
 
-    print("Predicting weak labels by mean resnet")
-    print("AUC: mean {}, std {}".format(aucs.mean(), aucs.std()))
+    rfr = RandomForestRegressor()
+    params = {
+        "n_estimators": [10, 20, 50],
+        "max_depth": [6,10,16,None]
+    }
+    clf = GridSearchCV(rfr, params, cv=3, verbose = 5, scoring = "roc_auc")
 
-    # -------------------------------------------------------------------------
-    # Prediction on the test set
+    clf.fit(features_train_shuf, labels_train_shuf)
+    best_estimator = clf.best_estimator_
+    print(clf.best_score_)
+    print(clf.best_params_)
+    
+    # aucs = np.array(aucs)
 
-    # Train a final model on the full training set
-    estimator = sklearn.linear_model.LogisticRegression(
-        penalty="l2", C=1.0, solver="liblinear")
-    estimator.fit(features_train, labels_train)
+    # print("Predicting weak labels by mean resnet")
+    # print("AUC: mean {}, std {}".format(aucs.mean(), aucs.std()))
 
-    preds_test = estimator.predict_proba(features_test)[:, 1]
+    # # -------------------------------------------------------------------------
+    # # Prediction on the test set
 
-    # Check that predictions are in [0, 1]
+    # # Train a final model on the full training set
+    #  estimator = sklearn.linear_model.LogisticRegression(
+    #     penalty="l2", C=1.0, solver="liblinear")
+    best_estimator.fit(features_train, labels_train)
+
+    preds_test = best_estimator.predict(features_test)
+
+# # Check that predictions are in [0, 1]
     assert np.max(preds_test) <= 1.0
     assert np.min(preds_test) >= 0.0
 
-    # -------------------------------------------------------------------------
-    # Write the predictions in a csv file, to export them in the suitable format
-    # to the data challenge platform
+# # -------------------------------------------------------------------------
+# # Write the predictions in a csv file, to export them in the suitable format
+# # to the data challenge platform
     ids_number_test = [i.split("ID_")[1] for i in ids_test]
     test_output = pd.DataFrame({"ID": ids_number_test, "Target": preds_test})
     test_output.set_index("ID", inplace=True)
