@@ -12,9 +12,11 @@ import sklearn
 import sklearn.linear_model
 import sklearn.metrics
 import sklearn.model_selection
-from sklearn.ensemble        import RandomForestRegressor
-from sklearn.model_selection import GridSearchCV
-from sklearn.utils           import shuffle
+from   sklearn.ensemble        import RandomForestClassifier
+from   sklearn.model_selection import GridSearchCV
+from   sklearn.utils           import shuffle
+from   sklearn                 import svm 
+from   sklearn.neural_network  import MLPClassifier
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--num_runs", required=True, type=int,
@@ -42,8 +44,9 @@ def get_average_features(filenames):
 
         aggregated_features_1 = np.max(patient_features, axis=0)
         aggregated_features_2 = np.mean(patient_features, axis=0)
+        aggregated_features_3 = np.min(patient_features, axis=0)
         aggregated_features = np.concatenate((aggregated_features_1,
-                                              aggregated_features_2))
+                                              aggregated_features_2, aggregated_features_3))
         # print(aggregated_features.shape)
         features.append(aggregated_features)
 
@@ -117,15 +120,32 @@ if __name__ == "__main__":
     #      aucs.append(auc)
 
 
-    rfr = RandomForestRegressor()
+    #rfr = RandomForestClassifier()
+    
+    #rfr = svm.SVC()
+    rfr = MLPClassifier()
+
+    # params = {
+    #     "n_estimators": [10, 20, 50],
+    #     "max_depth": [6,10,16,None]
+    # }
+
     params = {
-        "n_estimators": [10, 20, 50],
-        "max_depth": [6,10,16,None]
+        "solver" :['lbfgs'],#'sgd','adam'], 
+        "alpha":[1e-5],#,1e-6], #2e-5,5e-5
+        "hidden_layer_sizes":[(100,50,50)],#(200,100)],#20,15,10,5)],#(7, 5),(5,2),(20,20,20,15,15,10,10)
+        "random_state":[1],
+        "activation" : ['relu'],#,'tanh'],#'logistic'
+        "learning_rate_init":[1e-3],#,1e-2],#5e-1,1e-4
+        "learning_rate":['adaptive'],#,'constant','invscaling'],
+        "batch_size":[10],#5]#,50,100,200]
     }
-    clf = GridSearchCV(rfr, params, cv=3, verbose = 5, scoring = "roc_auc")
+
+    clf = GridSearchCV(rfr, params, cv=5, verbose = 5, scoring = "roc_auc")
 
     clf.fit(features_train_shuf, labels_train_shuf)
     best_estimator = clf.best_estimator_
+    
     print(clf.best_score_)
     print(clf.best_params_)
     
