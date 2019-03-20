@@ -12,17 +12,13 @@ import sklearn
 import sklearn.linear_model
 import sklearn.metrics
 import sklearn.model_selection
-from   sklearn.ensemble        import RandomForestClassifier
-from   sklearn.model_selection import GridSearchCV
-from   sklearn.utils           import shuffle
-from   sklearn                 import svm 
-from   sklearn.neural_network  import MLPClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import GridSearchCV
+from sklearn.utils import shuffle
+from sklearn import svm
+from sklearn.neural_network import MLPClassifier
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--num_runs", required=True, type=int,
-                    help="Number of runs for the cross validation")
-parser.add_argument("--num_splits", default=5, type=int,
-                    help="Number of splits for the cross validation")
 
 
 def get_average_features(filenames):
@@ -54,8 +50,13 @@ def get_average_features(filenames):
     return features
 
 
+def computeEnsemblePred(predsMLP, preds_RF, preds_Log):
+    preds = [(x + y + z)/3.0 for (x, y, z)
+             in zip(predsMLP, preds_RF, preds_Log)]
+    return preds
+
+
 if __name__ == "__main__":
-    args = parser.parse_args()
 
     path_root = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
     path = Path(path_root)
@@ -63,13 +64,13 @@ if __name__ == "__main__":
 
     # -------------------------------------------------------------------------
     # Load the data
-    args.data_dir = path
-    assert args.data_dir.is_dir()
+    data_dir = path
+    assert data_dir.is_dir()
 
-    train_dir = args.data_dir / "train_input" / "resnet_features"
-    test_dir = args.data_dir / "test_input" / "resnet_features"
+    train_dir = data_dir / "train_input" / "resnet_features"
+    test_dir = data_dir / "test_input" / "resnet_features"
 
-    train_output_filename = args.data_dir / "train_output.csv"
+    train_output_filename = data_dir / "train_output.csv"
 
     train_output = pd.read_csv(train_output_filename)
 
@@ -90,38 +91,18 @@ if __name__ == "__main__":
         assert filename.is_file(), filename
     ids_test = [f.stem for f in filenames_test]
 
-
     # Get the resnet features and aggregate them by the average
     features_train = get_average_features(filenames_train)
     features_test = get_average_features(filenames_test)
 
-    features_train_shuf, labels_train_shuf = shuffle(features_train, labels_train, random_state=0)
-    
+    features_train_shuf, labels_train_shuf = shuffle(
+        features_train, labels_train, random_state=0)
+
     # -------------------------------------------------------------------------
     # Use the average resnet features to predict the labels
 
-    # Multiple cross validations on the training set
-    #  aucs = []
-    #  for seed in range(args.num_runs):
-    #      # Use logistic regression with L2 penalty
-        
-    #     estimator = RandomForestRegression(
-    #          best_estimator)
-    # #     #estimator = sklearn.linear_model.LogisticRegression(
-    # #        # penalty="l2", C=1.0, solver="liblinear")
-
-    #      cv = sklearn.model_selection.StratifiedKFold(n_splits=args.num_splits, shuffle=True,
-    #                                                   random_state=seed)
-
-    # #     # Cross validation on the training set
-    #      auc = sklearn.model_selection.cross_val_score(estimator, X=features_train, y=labels_train,
-    # #                                                   cv=cv, scoring="roc_auc", verbose=0)
-
-    #      aucs.append(auc)
-
-
     #rfr = RandomForestClassifier()
-    
+
     #rfr = svm.SVC()
     rfr = MLPClassifier()
 
@@ -130,39 +111,50 @@ if __name__ == "__main__":
     #     "max_depth": [6,10,16,None]
     # }
 
-    params = {
-        "solver" :['lbfgs'],#'sgd','adam'], 
-        "alpha":[1e-5],#,1e-6], #2e-5,5e-5
-        "hidden_layer_sizes":[(100,50,50)],#(200,100)],#20,15,10,5)],#(7, 5),(5,2),(20,20,20,15,15,10,10)
-        "random_state":[1],
-        "activation" : ['relu'],#,'tanh'],#'logistic'
-        "learning_rate_init":[1e-3],#,1e-2],#5e-1,1e-4
-        "learning_rate":['adaptive'],#,'constant','invscaling'],
-        "batch_size":[10],#5]#,50,100,200]
-    }
+    # params = {
+    #     "solver": ['lbfgs', 'adam'],  # 'sgd','adam'],
+    #     "alpha": [1e-5],  # ,1e-6], #2e-5,5e-5
+    #     "hidden_layer_sizes": [(100, 50, 20), (100, 50)],
+    #     "activation": ['relu'],
+    #     "learning_rate_init": [1e-4],  # ,1e-2],#5e-1,1e-4
+    #     "learning_rate": ['adaptive'],  # ,'constant','invscaling'],
+    #     "batch_size": [10]
+    # }
 
-    clf = GridSearchCV(rfr, params, cv=5, verbose = 5, scoring = "roc_auc")
+    # clf = GridSearchCV(rfr, params, cv=5, verbose=5,
+    #                    scoring="roc_auc", n_jobs=2)
 
-    clf.fit(features_train_shuf, labels_train_shuf)
-    best_estimator = clf.best_estimator_
-    
-    print(clf.best_score_)
-    print(clf.best_params_)
-    
-    # aucs = np.array(aucs)
+    # clf.fit(features_train_shuf, labels_train_shuf)
+    # best_estimator = clf.best_estimator_
 
-    # print("Predicting weak labels by mean resnet")
-    # print("AUC: mean {}, std {}".format(aucs.mean(), aucs.std()))
+    # print(clf.best_score_)
+    # print(clf.best_params_)
+
+    bestMPLClassifier = MLPClassifier(solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(
+        100, 50), activation='relu', learning_rate_init=1e-4, learning_rate='adaptive', batch_size=10)
+    sklearn.model_selection.cross_val_score(bestMPLClassifier, X=features_train, y=labels_train,
+                                            cv=5, scoring="roc_auc", verbose=10)
+    bestMPLClassifier.fit(features_train, labels_train)
+    preds_MLP = bestMPLClassifier.predict(features_test)
+
+    bestRandomForestClassifier = RandomForestClassifier(n_estimators=50)
+    bestRandomForestClassifier.fit(features_train, labels_train)
+    preds_RF = bestRandomForestClassifier.predict(features_test)
+
+    bestLogClassifier = sklearn.linear_model.LogisticRegression(
+        penalty="l2", C=1.0, solver="liblinear")
+    bestLogClassifier.fit(features_train, labels_train)
+    preds_Log = bestLogClassifier.predict(features_test)
 
     # # -------------------------------------------------------------------------
     # # Prediction on the test set
 
     # # Train a final model on the full training set
-    #  estimator = sklearn.linear_model.LogisticRegression(
-    #     penalty="l2", C=1.0, solver="liblinear")
-    best_estimator.fit(features_train, labels_train)
+    preds_test = preds_MLP
 
-    preds_test = best_estimator.predict(features_test)
+    # # aggregate the data of 3 classifiers
+    # preds_test = computeEnsemblePred(preds_MLP, preds_RF, preds_Log)
+
 
 # # Check that predictions are in [0, 1]
     assert np.max(preds_test) <= 1.0
@@ -174,4 +166,4 @@ if __name__ == "__main__":
     ids_number_test = [i.split("ID_")[1] for i in ids_test]
     test_output = pd.DataFrame({"ID": ids_number_test, "Target": preds_test})
     test_output.set_index("ID", inplace=True)
-    test_output.to_csv(args.data_dir / "preds_test_baseline.csv")
+    test_output.to_csv(data_dir / "preds_test_baseline.csv")
