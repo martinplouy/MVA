@@ -42,9 +42,11 @@ def get_average_features(filenames):
 
         aggregated_features_1 = np.max(patient_features, axis=0)
         aggregated_features_2 = np.mean(patient_features, axis=0)
-        aggregated_features_3 = np.min(patient_features, axis=0)
+        # aggregated_features_3 = np.min(patient_features, axis=0)
+        # aggregated_features = np.concatenate((aggregated_features_1,
+        #                                       aggregated_features_2, aggregated_features_3))
         aggregated_features = np.concatenate((aggregated_features_1,
-                                              aggregated_features_2, aggregated_features_3))
+                                              aggregated_features_2))
         # print(aggregated_features.shape)
         features.append(aggregated_features)
 
@@ -81,12 +83,35 @@ def computeEnsemblePreds(X, y, X_test):
     preds_XGB = bestRandomXGB.predict_proba(X_test)[:, 1]
 
     bestMPLClassifier = MLPClassifier(
-        solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh')
+        solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=12)
     bestMPLClassifier.fit(X, y)
     preds_MLP = bestMPLClassifier.predict_proba(X_test)[:, 1]
 
+    # bestMPLClassifier2 = MLPClassifier(
+    #     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=10)
+    # bestMPLClassifier2.fit(X, y)
+    # preds_MLP2 = bestMPLClassifier.predict_proba(X_test)[:, 1]
+
+    # bestMPLClassifier3 = MLPClassifier(
+    #     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=1)
+    # bestMPLClassifier3.fit(X, y)
+    # preds_MLP3 = bestMPLClassifier.predict_proba(X_test)[:, 1]
+
+    # bestMPLClassifier4 = MLPClassifier(
+    #     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=8)
+    # bestMPLClassifier4.fit(X, y)
+    # preds_MLP4 = bestMPLClassifier.predict_proba(X_test)[:, 1]
+
+    # bestMPLClassifier5 = MLPClassifier(
+    #     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=11)
+    # bestMPLClassifier5.fit(X, y)
+    # preds_MLP5 = bestMPLClassifier.predict_proba(X_test)[:, 1]
+
     preds_test = computeMeanOfPreds(
-        preds_MLP, preds_RF, preds_XGB, preds_SVC, preds_Log)
+        preds_MLP, preds_RF, preds_XGB, preds_MLP, preds_Log)
+
+    # preds_test = computeMeanOfPreds(
+    #     preds_MLP, preds_MLP2, preds_MLP3, preds_MLP4, preds_MLP5)
     return preds_test
 
 
