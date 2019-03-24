@@ -12,6 +12,7 @@ import sklearn
 import sklearn.linear_model
 import sklearn.metrics
 import sklearn.model_selection
+import fnmatch
 from   sklearn.ensemble        import RandomForestClassifier
 from   sklearn.model_selection import GridSearchCV
 from   sklearn.utils           import shuffle
@@ -26,33 +27,34 @@ parser.add_argument("--num_splits", default=5, type=int,
 
 
 def get_average_features(filenames):
-    """Load and aggregate the resnet features by the average.
+    """#Load and aggregate the resnet features by the average.
 
-    Args:
-        filenames: list of filenames of length `num_patients` corresponding to resnet features
+    #Args:
+    #    filenames: list of filenames of length `num_patients` corresponding to resnet features
 
-    Returns:
-        features: np.array of mean resnet features, shape `(num_patients, 2048)`
-    """
-    # Load numpy arrays
+    #Returns:
+    #    features: np.array of mean resnet features, shape `(num_patients, 2048)`
+    #
+    # Load numpy arrays"""
+    
     features = []
+
     for f in filenames:
         patient_features = np.load(f)
 
-        # Remove location features (but we could use them?)
+      # Remove location features (but we could use them?)
         patient_features = patient_features[:, 3:]
 
         aggregated_features_1 = np.max(patient_features, axis=0)
         aggregated_features_2 = np.mean(patient_features, axis=0)
         aggregated_features_3 = np.min(patient_features, axis=0)
-        aggregated_features = np.concatenate((aggregated_features_1,
-                                              aggregated_features_2, aggregated_features_3))
-        # print(aggregated_features.shape)
+        aggregated_features = np.concatenate((aggregated_features_1,aggregated_features_2, aggregated_features_3))
+        print(aggregated_features.shape)
         features.append(aggregated_features)
 
     features = np.stack(features, axis=0)
+    print(features.shape)
     return features
-
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -72,7 +74,7 @@ if __name__ == "__main__":
     train_output_filename = args.data_dir / "train_output.csv"
 
     train_output = pd.read_csv(train_output_filename)
-
+    
     # Get the filenames for train
     filenames_train = [train_dir /
                        "{}.npy".format(idx) for idx in train_output["ID"]]
@@ -93,7 +95,8 @@ if __name__ == "__main__":
 
     # Get the resnet features and aggregate them by the average
     features_train = get_average_features(filenames_train)
-    features_test = get_average_features(filenames_test)
+    features_test = get_average_features(filenames_train)
+    
 
     features_train_shuf, labels_train_shuf = shuffle(features_train, labels_train, random_state=0)
     
@@ -139,6 +142,7 @@ if __name__ == "__main__":
         "learning_rate_init":[1e-3],#,1e-2],#5e-1,1e-4
         "learning_rate":['adaptive'],#,'constant','invscaling'],
         "batch_size":[10],#5]#,50,100,200]
+        "early_stopping" : [True]
     }
 
     clf = GridSearchCV(rfr, params, cv=5, verbose = 5, scoring = "roc_auc")
