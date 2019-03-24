@@ -24,20 +24,22 @@ parser = argparse.ArgumentParser()
 
 
 def get_average_features(filenames):
-    """Load and aggregate the resnet features by the average.
+    """#Load and aggregate the resnet features by the average.
 
-    Args:
-        filenames: list of filenames of length `num_patients` corresponding to resnet features
+    #Args:
+    #    filenames: list of filenames of length `num_patients` corresponding to resnet features
 
-    Returns:
-        features: np.array of mean resnet features, shape `(num_patients, 2048)`
-    """
-    # Load numpy arrays
+    #Returns:
+    #    features: np.array of mean resnet features, shape `(num_patients, 2048)`
+    #
+    # Load numpy arrays"""
+    
     features = []
+
     for f in filenames:
         patient_features = np.load(f)
 
-        # Remove location features (but we could use them?)
+      # Remove location features (but we could use them?)
         patient_features = patient_features[:, 3:]
 
         aggregated_features_1 = np.max(patient_features, axis=0)
@@ -52,6 +54,7 @@ def get_average_features(filenames):
         features.append(aggregated_features)
 
     features = np.stack(features, axis=0)
+    
     return features
 
 
@@ -314,7 +317,7 @@ if __name__ == "__main__":
     train_output_filename = data_dir / "train_output.csv"
 
     train_output = pd.read_csv(train_output_filename)
-
+    
     # Get the filenames for train
     filenames_train = [train_dir /
                        "{}.npy".format(idx) for idx in train_output["ID"]]
@@ -334,13 +337,15 @@ if __name__ == "__main__":
 
     # Get the resnet features and aggregate them by the average
     features_train = get_average_features(filenames_train)
-    features_test = get_average_features(filenames_test)
+    features_test = get_average_features(filenames_train)
+    
 
     features_train_shuf, labels_train_shuf = shuffle(
         features_train, labels_train, random_state=0)
 
     # # ----- If you want to run a Grid Search to find all the optimal parameters
     # computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
+
 
     # # ----- If you want to evaluate your model using cross validation
     # evaluateModel(features_train_shuf, labels_train_shuf, 3)
@@ -365,6 +370,8 @@ if __name__ == "__main__":
 # # Write the predictions in a csv file, to export them in the suitable format
 # # to the data challenge platform
     ids_number_test = [i.split("ID_")[1] for i in ids_test]
+    print(len(ids_number_test))
+    print(len(preds_test))
     test_output = pd.DataFrame(
         {"ID": ids_number_test, "Target": preds_test})
     test_output.set_index("ID", inplace=True)
