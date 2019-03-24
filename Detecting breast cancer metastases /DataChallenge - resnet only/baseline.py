@@ -33,7 +33,7 @@ def get_average_features(filenames):
     #    features: np.array of mean resnet features, shape `(num_patients, 2048)`
     #
     # Load numpy arrays"""
-    
+
     features = []
 
     for f in filenames:
@@ -49,12 +49,11 @@ def get_average_features(filenames):
                                               aggregated_features_2, aggregated_features_3))
         # aggregated_features = np.concatenate((aggregated_features_1,
         #                                       aggregated_features_2))
-        print(aggregated_features.shape)
 
         features.append(aggregated_features)
 
     features = np.stack(features, axis=0)
-    
+
     return features
 
 
@@ -71,10 +70,14 @@ def computeEnsemblePreds(X, y, X_test):
     bestLogClassifier.fit(X, y)
     preds_Log = bestLogClassifier.predict_proba(X_test)[:, 1]
 
+    print(len(X_test))
+    print(len(preds_Log))
+
     bestSVCClassifier = sklearn.svm.SVC(
         probability=True, gamma='scale', C=0.1, tol=0.001, kernel="rbf")
     bestSVCClassifier.fit(X, y)
     preds_SVC = bestSVCClassifier.predict_proba(X_test)[:, 1]
+    print(len(preds_SVC))
 
     bestRandomForestClassifier = RandomForestClassifier(
         n_estimators=80, max_depth=10)
@@ -116,6 +119,7 @@ def computeEnsemblePreds(X, y, X_test):
 
     # preds_test = computeMeanOfPreds(
     #     preds_MLP, preds_MLP2, preds_MLP3, preds_MLP4, preds_MLP5)
+
     return preds_test
 
 
@@ -317,7 +321,7 @@ if __name__ == "__main__":
     train_output_filename = data_dir / "train_output.csv"
 
     train_output = pd.read_csv(train_output_filename)
-    
+
     # Get the filenames for train
     filenames_train = [train_dir /
                        "{}.npy".format(idx) for idx in train_output["ID"]]
@@ -337,15 +341,13 @@ if __name__ == "__main__":
 
     # Get the resnet features and aggregate them by the average
     features_train = get_average_features(filenames_train)
-    features_test = get_average_features(filenames_train)
-    
+    features_test = get_average_features(filenames_test)
 
     features_train_shuf, labels_train_shuf = shuffle(
         features_train, labels_train, random_state=0)
 
     # # ----- If you want to run a Grid Search to find all the optimal parameters
     # computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
-
 
     # # ----- If you want to evaluate your model using cross validation
     # evaluateModel(features_train_shuf, labels_train_shuf, 3)
