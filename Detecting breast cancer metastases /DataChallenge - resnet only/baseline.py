@@ -63,12 +63,12 @@ def computeMeanOfPreds(preds_1, preds_2, preds_3, preds_4, preds_5):
 def computeEnsemblePreds(X, y, X_test):
 
     bestLogClassifier = sklearn.linear_model.LogisticRegression(
-        penalty="l2", C=0.5, solver="liblinear", tol=0.01)
+        penalty="l2", C=0.1, solver="liblinear", tol=0.0001)
     bestLogClassifier.fit(X, y)
     preds_Log = bestLogClassifier.predict_proba(X_test)[:, 1]
 
     bestSVCClassifier = sklearn.svm.SVC(
-        probability=True, gamma='scale', C=0.1, tol=0.01, kernel="rbf")
+        probability=True, gamma='scale', C=0.1, tol=0.001, kernel="rbf")
     bestSVCClassifier.fit(X, y)
     preds_SVC = bestSVCClassifier.predict_proba(X_test)[:, 1]
 
@@ -78,12 +78,12 @@ def computeEnsemblePreds(X, y, X_test):
     preds_RF = bestRandomForestClassifier.predict_proba(X_test)[:, 1]
 
     bestRandomXGB = GradientBoostingClassifier(
-        n_estimators=200, max_depth=6, subsample=0.8)
+        n_estimators=80, max_depth=6, subsample=0.8)
     bestRandomXGB.fit(X, y)
     preds_XGB = bestRandomXGB.predict_proba(X_test)[:, 1]
 
     bestMPLClassifier = MLPClassifier(
-        solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=12)
+        solver="lbfgs", alpha=0.001, hidden_layer_sizes=(100, 50, 20), activation='relu', random_state=12)
     bestMPLClassifier.fit(X, y)
     preds_MLP = bestMPLClassifier.predict_proba(X_test)[:, 1]
 
@@ -273,13 +273,27 @@ def GridSearchMLP(X, y):
     return best_estimator
 
 
-# def evaluateModel(X, y):
-#     num_data = len(X)
-#     for i in range(4):
-#         lower = i * 0.25 * num_data
-#         upper = (i + 1) * 0.25 * num_data
-#         test = [True for (idx, k) in enumerate(X) if idx < upper and idx > lower else False]
-#         print(test)
+def evaluateModel(X, y, num_CV):
+    threshold = 1.0 / num_CV
+    num_data = len(X)
+    aucs = []
+    for i in range(num_CV):
+        lower = i * threshold * num_data
+        upper = (i + 1) * threshold * num_data
+        test = [True if idx < upper and idx >=
+                lower else False for (idx, k) in enumerate(X)]
+        train = [not t for t in test]
+        training_feature = X[train]
+        training_label = y[train]
+        testing_feature = X[test]
+        testing_label = y[test]
+        preds_test = computeEnsemblePreds(
+            training_feature, training_label, testing_feature)
+        auc = sklearn.metrics.roc_auc_score(
+            testing_label, preds_test)
+        print("for i : ", i, " the auc score is ", auc)
+        aucs.append(auc)
+    print(np.mean(aucs))
 
 
 if __name__ == "__main__":
@@ -324,20 +338,20 @@ if __name__ == "__main__":
     features_train_shuf, labels_train_shuf = shuffle(
         features_train, labels_train, random_state=0)
 
+    # # ----- If you want to run a Grid Search to find all the optimal parameters
+    # computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
+
+    # # ----- If you want to evaluate your model using cross validation
+    # evaluateModel(features_train_shuf, labels_train_shuf, 3)
+
+    # # ------ If you want to analyse the results of your predictor
     # X_train, X_valid, y_train, y_valid = train_test_split(
     #     features_train_shuf, labels_train_shuf, test_size=0.33, random_state=42)
-
-    computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
-
-#     # # Train a final model on the full training set
-#     preds_test = computeMLPPreds(X_train, y_train, X_valid)
-#     print(sklearn.metrics.roc_auc_score(
-#         y_valid, preds_test))
-
-    # preds_test = computeEnsemblePreds(X_train, y_train, X_valid)
+    # preds_test = computeMLPPreds(X_train, y_train, X_valid)
     # print(sklearn.metrics.roc_auc_score(
     #     y_valid, preds_test))
 
+    # #  ------  Train a final model on the full training set
     preds_test = computeEnsemblePreds(
         features_train, labels_train, features_test)
 
