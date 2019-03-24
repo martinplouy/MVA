@@ -1,3 +1,4 @@
+# from tile import computeTilePredictorModel
 """Train the baseline model i.e. a logistic regression on the average of the resnet features and
 and make a prediction.
 """
@@ -57,6 +58,38 @@ def get_average_features(filenames):
     return features
 
 
+def getTileFeatures(filenames, model):
+
+    features = []
+
+    for f in filenames:
+        patient_features = np.load(f)
+
+      # Remove location features (but we could use them?)
+        patient_features = patient_features[:, 3:]
+
+        preds_tile = model.predict_proba(patient_features)[:, 1]
+        preds_tile = model.predict(patient_features)
+        mean = np.mean(preds_tile)
+        num_tiles_selected = 900
+        middle = int(num_tiles_selected / 2)
+        if len(preds_tile) < num_tiles_selected:
+            preds_tile = np.concatenate((preds_tile,
+                                         [0 for j in range(num_tiles_selected)]))[0:num_tiles_selected]
+
+        preds_tile.sort()
+        shortened = np.concatenate(
+            (preds_tile[:middle], preds_tile[-middle:]))
+        final_feature = shortened
+        final_feature = np.concatenate((shortened,
+                                        [mean * 100]))
+        features.append(final_feature)
+
+    features = np.stack(features, axis=0)
+
+    return features
+
+
 def computeMeanOfPreds(preds_1, preds_2, preds_3, preds_4, preds_5):
     preds = [(v+w+x + y + z)/5.0 for (v, w, x, y, z)
              in zip(preds_1, preds_2, preds_3, preds_4, preds_5)]
@@ -65,60 +98,35 @@ def computeMeanOfPreds(preds_1, preds_2, preds_3, preds_4, preds_5):
 
 def computeEnsemblePreds(X, y, X_test):
 
-    bestLogClassifier = sklearn.linear_model.LogisticRegression(
-        penalty="l2", C=0.1, solver="liblinear", tol=0.0001)
-    bestLogClassifier.fit(X, y)
-    preds_Log = bestLogClassifier.predict_proba(X_test)[:, 1]
-
-    print(len(X_test))
-    print(len(preds_Log))
+    # bestLogClassifier = sklearn.linear_model.LogisticRegression(
+    #     penalty="l2", C=0.1, solver="liblinear", tol=0.01)
+    # bestLogClassifier.fit(X, y)
+    # preds_Log = bestLogClassifier.predict_proba(X_test)[:, 1]
 
     bestSVCClassifier = sklearn.svm.SVC(
-        probability=True, gamma='scale', C=0.1, tol=0.001, kernel="rbf")
+        probability=True, gamma='scale', C=2, tol=0.1, kernel="rbf", random_state=5)
     bestSVCClassifier.fit(X, y)
     preds_SVC = bestSVCClassifier.predict_proba(X_test)[:, 1]
-    print(len(preds_SVC))
 
-    bestRandomForestClassifier = RandomForestClassifier(
-        n_estimators=80, max_depth=10)
-    bestRandomForestClassifier.fit(X, y)
-    preds_RF = bestRandomForestClassifier.predict_proba(X_test)[:, 1]
+    # bestRandomForestClassifier = RandomForestClassifier(
+    #     n_estimators=80, max_depth=10)
+    # bestRandomForestClassifier.fit(X, y)
+    # preds_RF = bestRandomForestClassifier.predict_proba(X_test)[:, 1]
 
-    bestRandomXGB = GradientBoostingClassifier(
-        n_estimators=80, max_depth=6, subsample=0.8)
-    bestRandomXGB.fit(X, y)
-    preds_XGB = bestRandomXGB.predict_proba(X_test)[:, 1]
+    # bestRandomXGB = GradientBoostingClassifier(
+    #     n_estimators=80, max_depth=6, subsample=0.8)
+    # bestRandomXGB.fit(X, y)
+    # preds_XGB = bestRandomXGB.predict_proba(X_test)[:, 1]
 
-    bestMPLClassifier = MLPClassifier(
-        solver="lbfgs", alpha=0.001, hidden_layer_sizes=(100, 50, 20), activation='relu', random_state=12)
-    bestMPLClassifier.fit(X, y)
-    preds_MLP = bestMPLClassifier.predict_proba(X_test)[:, 1]
-
-    # bestMPLClassifier2 = MLPClassifier(
-    #     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=10)
-    # bestMPLClassifier2.fit(X, y)
-    # preds_MLP2 = bestMPLClassifier.predict_proba(X_test)[:, 1]
-
-    # bestMPLClassifier3 = MLPClassifier(
-    #     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=1)
-    # bestMPLClassifier3.fit(X, y)
-    # preds_MLP3 = bestMPLClassifier.predict_proba(X_test)[:, 1]
-
-    # bestMPLClassifier4 = MLPClassifier(
-    #     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=8)
-    # bestMPLClassifier4.fit(X, y)
-    # preds_MLP4 = bestMPLClassifier.predict_proba(X_test)[:, 1]
-
-    # bestMPLClassifier5 = MLPClassifier(
-    #     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=11)
-    # bestMPLClassifier5.fit(X, y)
-    # preds_MLP5 = bestMPLClassifier.predict_proba(X_test)[:, 1]
-
-    preds_test = computeMeanOfPreds(
-        preds_MLP, preds_RF, preds_XGB, preds_SVC, preds_Log)
+    # bestMPLClassifier = MLPClassifier(
+    #     solver="lbfgs", alpha=0.001, hidden_layer_sizes=(100, 50, 20), activation='relu', random_state=12)
+    # bestMPLClassifier.fit(X, y)
+    # preds_MLP = bestMPLClassifier.predict_proba(X_test)[:, 1]
 
     # preds_test = computeMeanOfPreds(
-    #     preds_MLP, preds_MLP2, preds_MLP3, preds_MLP4, preds_MLP5)
+    #     preds_MLP, preds_RF, preds_XGB, preds_SVC, preds_Log)
+
+    preds_test = preds_SVC
 
     return preds_test
 
@@ -126,8 +134,6 @@ def computeEnsemblePreds(X, y, X_test):
 def computeMLPPreds(X, y, X_test):
     bestMPLClassifier = MLPClassifier(solver="adam", alpha=1e-5, hidden_layer_sizes=(
         100, 50), activation='relu', learning_rate_init=1e-4, learning_rate='adaptive', batch_size=10, early_stopping=True)
-# sklearn.model_selection.cross_val_score(bestMPLClassifier, X=features_train_shuf, y=labels_train_shuf,
-#                                         cv=5, scoring="roc_auc", verbose=10)
     bestMPLClassifier.fit(X, y)
     preds_test = bestMPLClassifier.predict_proba(X_test)[:, 1]
 
@@ -135,18 +141,18 @@ def computeMLPPreds(X, y, X_test):
 
 
 def computeGridSearchOfAllModels(X, y):
-    GridSearchLogReg(X, y)
+    # GridSearchLogReg(X, y)
     GridSearchSVM(X, y)
-    GridSearchRF(X, y)
-    GridSearchGradientBoosting(X, y)
-    GridSearchMLP(X, y)
+    # GridSearchRF(X, y)
+    # GridSearchGradientBoosting(X, y)
+    # GridSearchMLP(X, y)
 
 
 def GridSearchLogReg(X, y):
     print(" --------- Doing Grid Search of Logistic regression")
     params = {
-        "C": [1.0, 0.5, 0.1],
-        "tol": [1e-4, 1e-2]
+        "C": [0.5, 0.1, 0.05],
+        "tol": [1e-4, 1e-3, 1e-2]
     }
     log = sklearn.linear_model.LogisticRegression(
         penalty="l2", solver="liblinear")
@@ -154,7 +160,7 @@ def GridSearchLogReg(X, y):
     gcv = GridSearchCV(log, params, cv=3, verbose=0,
                        scoring="roc_auc", n_jobs=3)
 
-    gcv.fit(features_train_shuf, labels_train_shuf)
+    gcv.fit(X, y)
     best_estimator = gcv.best_estimator_
 
     print("Best score reached is", gcv.best_score_)
@@ -165,16 +171,16 @@ def GridSearchLogReg(X, y):
 def GridSearchSVM(X, y):
     print(" --------- Doing Grid Search of SVM")
     params = {
-        "C": [1.0,  0.1, 0.05],
-        "tol": [1e-3, 1e-2],
+        "C": [10.0, 5.0, 3.0, 1.0,  0.1],
+        "tol": [1e-3, 1e-2, 1e-1, 1],
         "kernel": ["rbf", "sigmoid"],
     }
     svc = sklearn.svm.SVC(probability=True, gamma='scale')
 
-    gcv = GridSearchCV(svc, params, cv=3, verbose=0,
+    gcv = GridSearchCV(svc, params, cv=3, verbose=10,
                        scoring="roc_auc", n_jobs=3)
 
-    gcv.fit(features_train_shuf, labels_train_shuf)
+    gcv.fit(X, y)
     best_estimator = gcv.best_estimator_
 
     print("Best score reached is", gcv.best_score_)
@@ -190,10 +196,10 @@ def GridSearchRF(X, y):
     }
     rf = RandomForestClassifier()
 
-    gcv = GridSearchCV(rf, params, cv=3, verbose=0,
+    gcv = GridSearchCV(rf, params, cv=3, verbose=1,
                        scoring="roc_auc", n_jobs=3)
 
-    gcv.fit(features_train_shuf, labels_train_shuf)
+    gcv.fit(X, y)
     best_estimator = gcv.best_estimator_
 
     print("Best score reached is", gcv.best_score_)
@@ -204,7 +210,7 @@ def GridSearchRF(X, y):
 def GridSearchGradientBoosting(X, y):
     print(" --------- Doing Grid Search of Gradient Boosting")
     params = {
-        "n_estimators": [80, 150, 200],
+        "n_estimators": [40, 100],
         "max_depth": [4, 6, 8],
         "subsample": [0.6, 0.8, 1.0],
     }
@@ -213,7 +219,7 @@ def GridSearchGradientBoosting(X, y):
     gcv = GridSearchCV(xgb, params, cv=3, verbose=2,
                        scoring="roc_auc", n_jobs=-1)
 
-    gcv.fit(features_train_shuf, labels_train_shuf)
+    gcv.fit(X, y)
     best_estimator = gcv.best_estimator_
 
     print("Best score reached is", gcv.best_score_)
@@ -228,15 +234,14 @@ def GridSearchMLP(X, y):
         "hidden_layer_sizes": [(100, 50, 20), (100, 50)],
         "activation": ['relu'],
         "learning_rate_init": [1e-4, 1e-2],
-        "learning_rate": ['adaptive'],
-        "batch_size": [2, 10]
+        "learning_rate": ['adaptive']
     }
     mlp = MLPClassifier(early_stopping=True)
 
     clf = GridSearchCV(mlp, params, cv=3, verbose=5,
                        scoring="roc_auc", n_jobs=3)
 
-    clf.fit(features_train_shuf, labels_train_shuf)
+    clf.fit(X, y)
     best_estimator = clf.best_estimator_
 
     print("for sgd", clf.best_score_)
@@ -244,18 +249,17 @@ def GridSearchMLP(X, y):
 
     params = {
         "solver": ['adam'],
-        "alpha": [1e-5, 1e-3],
-        "hidden_layer_sizes": [(100, 50, 20), (100, 50)],
+        "alpha": [1e-4, 1e-3, 1e-2],
+        "hidden_layer_sizes": [(100, 50, 20), (200, 100, 30)],
         "activation": ['relu'],
-        "learning_rate_init": [1e-4, 1e-2],
-        "batch_size": [2, 10]
+        "learning_rate_init": [1e-4, 1e-3, 1e-2]
     }
     mlp = MLPClassifier(early_stopping=True)
 
     clf = GridSearchCV(mlp, params, cv=3, verbose=5,
                        scoring="roc_auc", n_jobs=3)
 
-    clf.fit(features_train_shuf, labels_train_shuf)
+    clf.fit(X, y)
     best_estimator = clf.best_estimator_
 
     print("for adam", clf.best_score_)
@@ -272,7 +276,7 @@ def GridSearchMLP(X, y):
     clf = GridSearchCV(mlp, params, cv=3, verbose=2,
                        scoring="roc_auc", n_jobs=-1)
 
-    clf.fit(features_train_shuf, labels_train_shuf)
+    clf.fit(X, y)
     best_estimator = clf.best_estimator_
 
     print("for lfbgs", clf.best_score_)
@@ -339,42 +343,57 @@ if __name__ == "__main__":
         assert filename.is_file(), filename
     ids_test = [f.stem for f in filenames_test]
 
+    model = computeTilePredictorModel()
+    features_train = getTileFeatures(filenames_train, model)
+    features_test = getTileFeatures(filenames_test, model)
+    # features_train = getTileFeatures(filenames_train, model)
+
+    # newarr = np.column_stack((features_train, labels_train))
+    # arr = pd.DataFrame(newarr, columns=["percentage", "label"])
+    # sortedarr = arr.sort_values(by=['percentage'], ascending=False)
+    # print(sortedarr)
+
     # Get the resnet features and aggregate them by the average
-    features_train = get_average_features(filenames_train)
-    features_test = get_average_features(filenames_test)
+    # features_train = get_average_features(filenames_train)
+    # features_test = get_average_features(filenames_test)
 
     features_train_shuf, labels_train_shuf = shuffle(
         features_train, labels_train, random_state=0)
 
     # # ----- If you want to run a Grid Search to find all the optimal parameters
-    # computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
+    computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
 
     # # ----- If you want to evaluate your model using cross validation
     # evaluateModel(features_train_shuf, labels_train_shuf, 3)
 
-    # # ------ If you want to analyse the results of your predictor
+    # ------ If you want to analyse the results of your predictor
     # X_train, X_valid, y_train, y_valid = train_test_split(
     #     features_train_shuf, labels_train_shuf, test_size=0.33, random_state=42)
     # preds_test = computeEnsemblePreds(X_train, y_train, X_valid)
+
     # print(sklearn.metrics.roc_auc_score(
     #     y_valid, preds_test))
+    # newarr = np.column_stack((y_valid, preds_test))
+    # arr = pd.DataFrame(newarr, columns=["valid", "preds_test"])
+    # sortedarr = arr.sort_values(by=['valid'], ascending=False)
+    # print(sortedarr)
 
-    # #  ------  Train a final model on the full training set
-    preds_test = computeEnsemblePreds(
-        features_train, labels_train, features_test)
+#     # #------ Train a final model on the full training set
+#     preds_test = computeEnsemblePreds(
+#         features_train, labels_train, features_test)
 
 
-# # Check that predictions are in [0, 1]
-    assert np.max(preds_test) <= 1.0
-    assert np.min(preds_test) >= 0.0
+# # # Check that predictions are in [0, 1]
+#     assert np.max(preds_test) <= 1.0
+#     assert np.min(preds_test) >= 0.0
 
-# # -------------------------------------------------------------------------
-# # Write the predictions in a csv file, to export them in the suitable format
-# # to the data challenge platform
-    ids_number_test = [i.split("ID_")[1] for i in ids_test]
-    print(len(ids_number_test))
-    print(len(preds_test))
-    test_output = pd.DataFrame(
-        {"ID": ids_number_test, "Target": preds_test})
-    test_output.set_index("ID", inplace=True)
-    test_output.to_csv(data_dir / "preds_test_baseline.csv")
+# # # -------------------------------------------------------------------------
+# # # Write the predictions in a csv file, to export them in the suitable format
+# # # to the data challenge platform
+#     ids_number_test = [i.split("ID_")[1] for i in ids_test]
+#     print(len(ids_number_test))
+#     print(len(preds_test))
+#     test_output = pd.DataFrame(
+#         {"ID": ids_number_test, "Target": preds_test})
+#     test_output.set_index("ID", inplace=True)
+#     test_output.to_csv(data_dir / "preds_test_baseline.csv")
