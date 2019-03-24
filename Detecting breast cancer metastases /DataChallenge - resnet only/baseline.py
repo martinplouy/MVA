@@ -47,7 +47,8 @@ def get_average_features(filenames):
                                               aggregated_features_2, aggregated_features_3))
         # aggregated_features = np.concatenate((aggregated_features_1,
         #                                       aggregated_features_2))
-        # print(aggregated_features.shape)
+        print(aggregated_features.shape)
+
         features.append(aggregated_features)
 
     features = np.stack(features, axis=0)
@@ -347,7 +348,7 @@ if __name__ == "__main__":
     # # ------ If you want to analyse the results of your predictor
     # X_train, X_valid, y_train, y_valid = train_test_split(
     #     features_train_shuf, labels_train_shuf, test_size=0.33, random_state=42)
-    # preds_test = computeMLPPreds(X_train, y_train, X_valid)
+    # preds_test = computeEnsemblePreds(X_train, y_train, X_valid)
     # print(sklearn.metrics.roc_auc_score(
     #     y_valid, preds_test))
 
