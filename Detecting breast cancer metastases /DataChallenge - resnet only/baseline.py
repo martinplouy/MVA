@@ -12,14 +12,6 @@ import sklearn
 import sklearn.linear_model
 import sklearn.metrics
 import sklearn.model_selection
-<<<<<<< HEAD
-import fnmatch
-from   sklearn.ensemble        import RandomForestClassifier
-from   sklearn.model_selection import GridSearchCV
-from   sklearn.utils           import shuffle
-from   sklearn                 import svm 
-from   sklearn.neural_network  import MLPClassifier
-=======
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.model_selection import GridSearchCV
@@ -27,7 +19,6 @@ from sklearn.utils import shuffle
 from sklearn import svm
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
->>>>>>> 8abecab2ecdf3d2a0ce21a30f0690ffd570660ca
 
 parser = argparse.ArgumentParser()
 
@@ -54,24 +45,17 @@ def get_average_features(filenames):
         aggregated_features_1 = np.max(patient_features, axis=0)
         aggregated_features_2 = np.mean(patient_features, axis=0)
         aggregated_features_3 = np.min(patient_features, axis=0)
-<<<<<<< HEAD
-        aggregated_features = np.concatenate((aggregated_features_1,aggregated_features_2, aggregated_features_3))
-        print(aggregated_features.shape)
-=======
         aggregated_features = np.concatenate((aggregated_features_1,
                                               aggregated_features_2, aggregated_features_3))
         # aggregated_features = np.concatenate((aggregated_features_1,
         #                                       aggregated_features_2))
         # print(aggregated_features.shape)
->>>>>>> 8abecab2ecdf3d2a0ce21a30f0690ffd570660ca
         features.append(aggregated_features)
 
     features = np.stack(features, axis=0)
-    print(features.shape)
+    
     return features
 
-<<<<<<< HEAD
-=======
 
 def computeMeanOfPreds(preds_1, preds_2, preds_3, preds_4, preds_5):
     preds = [(v+w+x + y + z)/5.0 for (v, w, x, y, z)
@@ -82,12 +66,12 @@ def computeMeanOfPreds(preds_1, preds_2, preds_3, preds_4, preds_5):
 def computeEnsemblePreds(X, y, X_test):
 
     bestLogClassifier = sklearn.linear_model.LogisticRegression(
-        penalty="l2", C=0.5, solver="liblinear", tol=0.01)
+        penalty="l2", C=0.1, solver="liblinear", tol=0.0001)
     bestLogClassifier.fit(X, y)
     preds_Log = bestLogClassifier.predict_proba(X_test)[:, 1]
 
     bestSVCClassifier = sklearn.svm.SVC(
-        probability=True, gamma='scale', C=0.1, tol=0.01, kernel="rbf")
+        probability=True, gamma='scale', C=0.1, tol=0.001, kernel="rbf")
     bestSVCClassifier.fit(X, y)
     preds_SVC = bestSVCClassifier.predict_proba(X_test)[:, 1]
 
@@ -97,12 +81,12 @@ def computeEnsemblePreds(X, y, X_test):
     preds_RF = bestRandomForestClassifier.predict_proba(X_test)[:, 1]
 
     bestRandomXGB = GradientBoostingClassifier(
-        n_estimators=200, max_depth=6, subsample=0.8)
+        n_estimators=80, max_depth=6, subsample=0.8)
     bestRandomXGB.fit(X, y)
     preds_XGB = bestRandomXGB.predict_proba(X_test)[:, 1]
 
     bestMPLClassifier = MLPClassifier(
-        solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(100, 50), activation='tanh', random_state=12)
+        solver="lbfgs", alpha=0.001, hidden_layer_sizes=(100, 50, 20), activation='relu', random_state=12)
     bestMPLClassifier.fit(X, y)
     preds_MLP = bestMPLClassifier.predict_proba(X_test)[:, 1]
 
@@ -292,16 +276,29 @@ def GridSearchMLP(X, y):
     return best_estimator
 
 
-# def evaluateModel(X, y):
-#     num_data = len(X)
-#     for i in range(4):
-#         lower = i * 0.25 * num_data
-#         upper = (i + 1) * 0.25 * num_data
-#         test = [True for (idx, k) in enumerate(X) if idx < upper and idx > lower else False]
-#         print(test)
+def evaluateModel(X, y, num_CV):
+    threshold = 1.0 / num_CV
+    num_data = len(X)
+    aucs = []
+    for i in range(num_CV):
+        lower = i * threshold * num_data
+        upper = (i + 1) * threshold * num_data
+        test = [True if idx < upper and idx >=
+                lower else False for (idx, k) in enumerate(X)]
+        train = [not t for t in test]
+        training_feature = X[train]
+        training_label = y[train]
+        testing_feature = X[test]
+        testing_label = y[test]
+        preds_test = computeEnsemblePreds(
+            training_feature, training_label, testing_feature)
+        auc = sklearn.metrics.roc_auc_score(
+            testing_label, preds_test)
+        print("for i : ", i, " the auc score is ", auc)
+        aucs.append(auc)
+    print(np.mean(aucs))
 
 
->>>>>>> 8abecab2ecdf3d2a0ce21a30f0690ffd570660ca
 if __name__ == "__main__":
 
     path_root = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
@@ -345,57 +342,21 @@ if __name__ == "__main__":
     features_train_shuf, labels_train_shuf = shuffle(
         features_train, labels_train, random_state=0)
 
+    # # ----- If you want to run a Grid Search to find all the optimal parameters
+    # computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
+
+
+    # # ----- If you want to evaluate your model using cross validation
+    # evaluateModel(features_train_shuf, labels_train_shuf, 3)
+
+    # # ------ If you want to analyse the results of your predictor
     # X_train, X_valid, y_train, y_valid = train_test_split(
     #     features_train_shuf, labels_train_shuf, test_size=0.33, random_state=42)
-
-<<<<<<< HEAD
-    #      aucs.append(auc)
-
-
-    #rfr = RandomForestClassifier()
-    
-    #rfr = svm.SVC()
-    rfr = MLPClassifier()
-
-    # params = {
-    #     "n_estimators": [10, 20, 50],
-    #     "max_depth": [6,10,16,None]
-    # }
-
-    params = {
-        "solver" :['lbfgs'],#'sgd','adam'], 
-        "alpha":[1e-5],#,1e-6], #2e-5,5e-5
-        "hidden_layer_sizes":[(100,50,50)],#(200,100)],#20,15,10,5)],#(7, 5),(5,2),(20,20,20,15,15,10,10)
-        "random_state":[1],
-        "activation" : ['relu'],#,'tanh'],#'logistic'
-        "learning_rate_init":[1e-3],#,1e-2],#5e-1,1e-4
-        "learning_rate":['adaptive'],#,'constant','invscaling'],
-        "batch_size":[10],#5]#,50,100,200]
-        "early_stopping" : [True]
-    }
-
-    clf = GridSearchCV(rfr, params, cv=5, verbose = 5, scoring = "roc_auc")
-
-    clf.fit(features_train_shuf, labels_train_shuf)
-    best_estimator = clf.best_estimator_
-    
-    print(clf.best_score_)
-    print(clf.best_params_)
-    
-    # aucs = np.array(aucs)
-=======
-    computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
->>>>>>> 8abecab2ecdf3d2a0ce21a30f0690ffd570660ca
-
-#     # # Train a final model on the full training set
-#     preds_test = computeMLPPreds(X_train, y_train, X_valid)
-#     print(sklearn.metrics.roc_auc_score(
-#         y_valid, preds_test))
-
-    # preds_test = computeEnsemblePreds(X_train, y_train, X_valid)
+    # preds_test = computeMLPPreds(X_train, y_train, X_valid)
     # print(sklearn.metrics.roc_auc_score(
     #     y_valid, preds_test))
 
+    # #  ------  Train a final model on the full training set
     preds_test = computeEnsemblePreds(
         features_train, labels_train, features_test)
 
@@ -408,6 +369,8 @@ if __name__ == "__main__":
 # # Write the predictions in a csv file, to export them in the suitable format
 # # to the data challenge platform
     ids_number_test = [i.split("ID_")[1] for i in ids_test]
+    print(len(ids_number_test))
+    print(len(preds_test))
     test_output = pd.DataFrame(
         {"ID": ids_number_test, "Target": preds_test})
     test_output.set_index("ID", inplace=True)
