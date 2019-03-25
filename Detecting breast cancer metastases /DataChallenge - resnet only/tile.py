@@ -14,7 +14,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.utils import shuffle
 from sklearn import svm
 from sklearn.neural_network import MLPClassifier
-from baseline import computeGridSearchOfAllModels
+# from baseline import computeGridSearchOfAllModels
 
 
 parser = argparse.ArgumentParser()
@@ -70,8 +70,12 @@ def computeTilePredictorModel():
     # mlp.fit(features_train_shuf, labels_train_shuf)
 
     bestLogClassifier = sklearn.linear_model.LogisticRegression(
-        penalty="l2", C=0.1, solver="liblinear", tol=0.01)
+        penalty="l2", C=0.05, solver="liblinear", tol=0.01)
     bestLogClassifier.fit(features_train, labels_train)
+
+    # bestSVCClassifier = sklearn.svm.SVC(
+    #     probability=True, gamma='scale', C=3.0, tol=0.1, kernel="rbf")
+    # bestSVCClassifier.fit(features_train, labels_train)
     return bestLogClassifier
 
 

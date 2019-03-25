@@ -1,4 +1,4 @@
-# from tile import computeTilePredictorModel
+from tile import computeTilePredictorModel
 """Train the baseline model i.e. a logistic regression on the average of the resnet features and
 and make a prediction.
 """
@@ -141,8 +141,8 @@ def computeMLPPreds(X, y, X_test):
 
 
 def computeGridSearchOfAllModels(X, y):
-    # GridSearchLogReg(X, y)
-    GridSearchSVM(X, y)
+    GridSearchLogReg(X, y)
+    # GridSearchSVM(X, y)
     # GridSearchRF(X, y)
     # GridSearchGradientBoosting(X, y)
     # GridSearchMLP(X, y)
@@ -171,9 +171,9 @@ def GridSearchLogReg(X, y):
 def GridSearchSVM(X, y):
     print(" --------- Doing Grid Search of SVM")
     params = {
-        "C": [10.0, 5.0, 3.0, 1.0,  0.1],
-        "tol": [1e-3, 1e-2, 1e-1, 1],
-        "kernel": ["rbf", "sigmoid"],
+        "C": [5.0, 3.0, 1.0,  0.1],
+        "tol": [1e-3, 1e-2, 1e-1],
+        "kernel": ["rbf"],
     }
     svc = sklearn.svm.SVC(probability=True, gamma='scale')
 
@@ -361,10 +361,10 @@ if __name__ == "__main__":
         features_train, labels_train, random_state=0)
 
     # # ----- If you want to run a Grid Search to find all the optimal parameters
-    computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
+    # computeGridSearchOfAllModels(features_train_shuf, labels_train_shuf)
 
     # # ----- If you want to evaluate your model using cross validation
-    # evaluateModel(features_train_shuf, labels_train_shuf, 3)
+    evaluateModel(features_train_shuf, labels_train_shuf, 3)
 
     # ------ If you want to analyse the results of your predictor
     # X_train, X_valid, y_train, y_valid = train_test_split(
